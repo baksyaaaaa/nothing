@@ -12,5 +12,6 @@
   "key.portalflight.player_esp": "Toggle Player ESP",
   "key.portalflight.mob_esp": "Toggle Mob ESP",
   "key.portalflight.storage_finder": "Toggle Storage Finder",
-  "key.portalflight.auto_sprint": "Toggle Auto Sprint"
+  "key.portalflight.auto_sprint": "Toggle Auto Sprint",
+  "key.portalflight.tracers": "Toggle ESP Tracers"
 }
