@@ -87,13 +87,12 @@ public final class PortalFlight implements ClientModInitializer {
             }
             // Hunger Saver intentionally does not interfere with sprinting.
             if (freecam) {
-                long window = client.getWindow().handle();
-                boolean forward = GLFW.glfwGetKey(window, client.options.keyUp.getKey().getValue()) == GLFW.GLFW_PRESS;
-                boolean back = GLFW.glfwGetKey(window, client.options.keyDown.getKey().getValue()) == GLFW.GLFW_PRESS;
-                boolean left = GLFW.glfwGetKey(window, client.options.keyLeft.getKey().getValue()) == GLFW.GLFW_PRESS;
-                boolean right = GLFW.glfwGetKey(window, client.options.keyRight.getKey().getValue()) == GLFW.GLFW_PRESS;
-                boolean up = GLFW.glfwGetKey(window, client.options.keyJump.getKey().getValue()) == GLFW.GLFW_PRESS;
-                boolean down = GLFW.glfwGetKey(window, client.options.keyShift.getKey().getValue()) == GLFW.GLFW_PRESS;
+                boolean forward = client.options.keyUp.isDown();
+                boolean back = client.options.keyDown.isDown();
+                boolean left = client.options.keyLeft.isDown();
+                boolean right = client.options.keyRight.isDown();
+                boolean up = client.options.keyJump.isDown();
+                boolean down = client.options.keyShift.isDown();
                 double yaw = Math.toRadians(player.getYRot());
                 Vec3 forwardVec = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
                 Vec3 rightVec = new Vec3(-forwardVec.z, 0, forwardVec.x);
