@@ -14,13 +14,14 @@ import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 
 public final class PortalFlight implements ClientModInitializer {
-    private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey;
-    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby;
+    private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey, swimKey, boatDescendKey;
+    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost;
     public static boolean freecam;
     public static Vec3 freecamPosition = Vec3.ZERO;
     private static final double FREECAM_SPEED = 0.75;
     private static final double FLY_SPEED = 0.40;
     private static final double SPRINT_FLY_SPEED = 1.20;
+    private static final double SWIM_BOOST_SPEED = 1.65;
     private static int scanTick;
     private static int spectatorCheckTick;
     private static BlockPos nearestFrame;
@@ -36,7 +37,10 @@ public final class PortalFlight implements ClientModInitializer {
         hungerKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.hunger", GLFW.GLFW_KEY_H, KeyMapping.Category.MISC));
         freecamKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.freecam", GLFW.GLFW_KEY_F6, KeyMapping.Category.MISC));
         privacyKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.privacy", GLFW.GLFW_KEY_P, KeyMapping.Category.MISC));
+        swimKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.swim", GLFW.GLFW_KEY_R, KeyMapping.Category.MISC));
+        boatDescendKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.boat_descend", GLFW.GLFW_KEY_X, KeyMapping.Category.MISC));
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            while (swimKey.consumeClick()) { swimBoost = !swimBoost; message(client, "Swim Boost " + (swimBoost ? "ON" : "OFF")); }
             while (privacyKey.consumeClick()) { privacyMode = !privacyMode; message(client, "Spectator Privacy " + (privacyMode ? "ON" : "OFF")); }
             while (noFallKey.consumeClick()) { noFall = !noFall; message(client, "Safe Fall " + (noFall ? "ON" : "OFF")); }
             while (hungerKey.consumeClick()) { hungerSaver = !hungerSaver; message(client, "Hunger Saver (no sprint restriction) " + (hungerSaver ? "ON" : "OFF")); }
@@ -84,12 +88,12 @@ public final class PortalFlight implements ClientModInitializer {
             // Hunger Saver intentionally does not interfere with sprinting.
             if (freecam) {
                 long window = client.getWindow().handle();
-                boolean forward = GLFW.glfwGetKey(window, GLFW.GLFW_KEY_W) == GLFW.GLFW_PRESS;
-                boolean back = GLFW.glfwGetKey(window, GLFW.GLFW_KEY_S) == GLFW.GLFW_PRESS;
-                boolean left = GLFW.glfwGetKey(window, GLFW.GLFW_KEY_A) == GLFW.GLFW_PRESS;
-                boolean right = GLFW.glfwGetKey(window, GLFW.GLFW_KEY_D) == GLFW.GLFW_PRESS;
-                boolean up = GLFW.glfwGetKey(window, GLFW.GLFW_KEY_SPACE) == GLFW.GLFW_PRESS;
-                boolean down = GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_SHIFT) == GLFW.GLFW_PRESS;
+                boolean forward = GLFW.glfwGetKey(window, client.options.keyUp.getKey().getValue()) == GLFW.GLFW_PRESS;
+                boolean back = GLFW.glfwGetKey(window, client.options.keyDown.getKey().getValue()) == GLFW.GLFW_PRESS;
+                boolean left = GLFW.glfwGetKey(window, client.options.keyLeft.getKey().getValue()) == GLFW.GLFW_PRESS;
+                boolean right = GLFW.glfwGetKey(window, client.options.keyRight.getKey().getValue()) == GLFW.GLFW_PRESS;
+                boolean up = GLFW.glfwGetKey(window, client.options.keyJump.getKey().getValue()) == GLFW.GLFW_PRESS;
+                boolean down = GLFW.glfwGetKey(window, client.options.keyShift.getKey().getValue()) == GLFW.GLFW_PRESS;
                 double yaw = Math.toRadians(player.getYRot());
                 Vec3 forwardVec = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
                 Vec3 rightVec = new Vec3(-forwardVec.z, 0, forwardVec.x);
@@ -104,6 +108,22 @@ public final class PortalFlight implements ClientModInitializer {
                 client.options.keyJump.setDown(false);
                 client.options.keyShift.setDown(false);
                 player.setDeltaMovement(Vec3.ZERO);
+            }
+            if (!freecam && swimBoost && !fly && player.getVehicle() == null && player.isInWater()) {
+                // Move in the direction of the player's look vector while swimming.
+                // Use Minecraft's rebound movement keys; avoid hardcoded WASD / Space / Shift.
+                double forwardInput = (client.options.keyUp.isDown() ? 1 : 0) - (client.options.keyDown.isDown() ? 1 : 0);
+                double sidewaysInput = (client.options.keyRight.isDown() ? 1 : 0) - (client.options.keyLeft.isDown() ? 1 : 0);
+                double yaw = Math.toRadians(player.getYRot());
+                Vec3 forwardVec = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
+                Vec3 rightVec = new Vec3(-forwardVec.z, 0, forwardVec.x);
+                Vec3 swimDirection = forwardVec.scale(forwardInput).add(rightVec.scale(sidewaysInput));
+                double vertical = (client.options.keyJump.isDown() ? 1 : 0) - (client.options.keyShift.isDown() ? 1 : 0);
+                swimDirection = swimDirection.add(0, vertical, 0);
+                if (swimDirection.lengthSqr() > 0) {
+                    Vec3 velocity = swimDirection.normalize().scale(SWIM_BOOST_SPEED);
+                    player.setDeltaMovement(velocity);
+                }
             }
             if (!freecam && fly && player.getVehicle() == null) {
                 double yaw = Math.toRadians(player.getYRot());
@@ -127,7 +147,7 @@ public final class PortalFlight implements ClientModInitializer {
             if (boatFly && player.getVehicle() != null && player.getVehicle().getType().toString().contains("boat")) {
                 var vehicle = player.getVehicle();
                 Vec3 v = vehicle.getDeltaMovement();
-                double up = client.options.keyJump.isDown() ? 0.35 : (GLFW.glfwGetKey(client.getWindow().handle(), GLFW.GLFW_KEY_X) == GLFW.GLFW_PRESS ? -0.25 : 0.04);
+                double up = client.options.keyJump.isDown() ? 0.35 : (boatDescendKey.isDown() ? -0.25 : 0.04);
                 vehicle.setDeltaMovement(v.x, up, v.z);
             }
             if (portalScan && ++scanTick % 30 == 0) {
