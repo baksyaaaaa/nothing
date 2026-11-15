@@ -6,5 +6,7 @@
   "key.portalflight.nofall": "No Fall",
   "key.portalflight.hunger": "Hunger Saver",
   "key.portalflight.freecam": "Freecam",
-  "key.portalflight.privacy": "Spectator Privacy"
+  "key.portalflight.privacy": "Spectator Privacy",
+  "key.portalflight.swim": "Toggle Swim Boost",
+  "key.portalflight.boat_descend": "Boat Fly: Descend"
 }
