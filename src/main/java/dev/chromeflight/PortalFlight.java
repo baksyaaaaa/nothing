@@ -14,14 +14,15 @@ import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 
 public final class PortalFlight implements ClientModInitializer {
-    private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey;
-    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver;
+    private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey;
+    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby;
     public static boolean freecam;
     public static Vec3 freecamPosition = Vec3.ZERO;
     private static final double FREECAM_SPEED = 0.75;
     private static final double FLY_SPEED = 0.40;
     private static final double SPRINT_FLY_SPEED = 1.20;
     private static int scanTick;
+    private static int spectatorCheckTick;
     private static BlockPos nearestFrame;
     private static final double SPEED_FACTOR = 1.8;
 
@@ -34,7 +35,9 @@ public final class PortalFlight implements ClientModInitializer {
         noFallKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.nofall", GLFW.GLFW_KEY_J, KeyMapping.Category.MISC));
         hungerKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.hunger", GLFW.GLFW_KEY_H, KeyMapping.Category.MISC));
         freecamKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.freecam", GLFW.GLFW_KEY_F6, KeyMapping.Category.MISC));
+        privacyKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.privacy", GLFW.GLFW_KEY_P, KeyMapping.Category.MISC));
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            while (privacyKey.consumeClick()) { privacyMode = !privacyMode; message(client, "Spectator Privacy " + (privacyMode ? "ON" : "OFF")); }
             while (noFallKey.consumeClick()) { noFall = !noFall; message(client, "Safe Fall " + (noFall ? "ON" : "OFF")); }
             while (hungerKey.consumeClick()) { hungerSaver = !hungerSaver; message(client, "Hunger Saver (no sprint restriction) " + (hungerSaver ? "ON" : "OFF")); }
             while (flyKey.consumeClick()) { fly = !fly; message(client, "Fly " + (fly ? "ON" : "OFF")); }
@@ -47,7 +50,28 @@ public final class PortalFlight implements ClientModInitializer {
                 if (freecam && player != null) freecamPosition = player.getEyePosition();
                 message(client, "Freecam " + (freecam ? "ON" : "OFF"));
             }
-            if (player == null || client.level == null) return;
+            if (player == null || client.level == null) { spectatorNearby = false; return; }
+            // Only spectator players whose entities the server sends can be detected.
+            // Hidden moderators or remote spectator cameras cannot be discovered client-side.
+            if (++spectatorCheckTick % 20 == 0) {
+                boolean found = false;
+                for (var other : client.level.players()) {
+                    if (other != player && other.isSpectator() && other.distanceToSqr(player) <= 48.0 * 48.0) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (found != spectatorNearby) {
+                    spectatorNearby = found;
+                    message(client, found ? "Spectator detected nearby (if visible to client)!" : "No nearby visible spectators detected");
+                }
+                if (found && privacyMode) {
+                    if (fly || speed || boatFly || freecam || noFall) {
+                        fly = false; speed = false; boatFly = false; freecam = false; noFall = false;
+                        message(client, "Privacy: movement modules and Safe Fall disabled");
+                    }
+                }
+            }
             if (noFall) {
                 // Local fall-distance reset and an explicit grounded-status packet during falls.
                 // Servers may still calculate fall damage from authoritative movement history.
