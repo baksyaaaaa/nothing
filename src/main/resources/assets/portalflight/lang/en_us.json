@@ -13,5 +13,6 @@
   "key.portalflight.mob_esp": "Toggle Mob ESP",
   "key.portalflight.storage_finder": "Toggle Storage Finder",
   "key.portalflight.auto_sprint": "Toggle Auto Sprint",
-  "key.portalflight.tracers": "Toggle ESP Tracers"
+  "key.portalflight.tracers": "Toggle ESP Tracers",
+  "key.portalflight.orbit_combat": "Toggle Orbit Combat"
 }
