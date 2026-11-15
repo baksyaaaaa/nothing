@@ -1,1 +1,9 @@
-{"key.portalflight.speed":"Toggle Speed","key.portalflight.boat":"Toggle Boat Fly","key.portalflight.portal":"Toggle Portal Locator"}
+{
+  "key.portalflight.speed": "Toggle Speed",
+  "key.portalflight.boat": "Toggle Boat Fly",
+  "key.portalflight.portal": "Toggle Portal Locator",
+  "key.portalflight.fly": "Fly",
+  "key.portalflight.nofall": "No Fall",
+  "key.portalflight.hunger": "Hunger Saver",
+  "key.portalflight.freecam": "Freecam"
+}
