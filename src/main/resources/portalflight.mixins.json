@@ -1,0 +1,1 @@
+{"required":true,"package":"dev.chromeflight.mixin","compatibilityLevel":"JAVA_21","client":["FreecamCameraMixin"],"injectors":{"defaultRequire":1}}
