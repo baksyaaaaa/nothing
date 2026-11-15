@@ -1,0 +1,5 @@
+{
+ "schemaVersion":1,"id":"portalflight","version":"1.0.0","name":"PortalFlight Utilities","description":"Client-side movement controls and end portal frame locator","environment":"client",
+ "entrypoints":{"client":["dev.chromeflight.PortalFlight"]},
+ "depends":{"fabricloader":">=0.17.3","minecraft":"1.21.11","java":">=21","fabric-api":"*"}
+}
