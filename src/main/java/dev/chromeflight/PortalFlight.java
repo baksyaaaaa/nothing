@@ -10,12 +10,17 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
 import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 
 public final class PortalFlight implements ClientModInitializer {
-    private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey, swimKey, boatDescendKey;
-    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost;
+    private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey, swimKey, boatDescendKey, playerEspKey, mobEspKey, storageFinderKey, autoSprintKey;
+    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint;
     public static boolean freecam;
     public static Vec3 freecamPosition = Vec3.ZERO;
     private static final double FREECAM_SPEED = 0.75;
@@ -23,6 +28,9 @@ public final class PortalFlight implements ClientModInitializer {
     private static final double SPRINT_FLY_SPEED = 1.20;
     private static final double SWIM_BOOST_SPEED = 1.65;
     private static int scanTick;
+    private static int espTick;
+    private static int storageTick;
+    private static final Set<UUID> glowingByMod = new HashSet<>();
     private static int spectatorCheckTick;
     private static BlockPos nearestFrame;
     private static final double SPEED_FACTOR = 1.8;
@@ -39,7 +47,15 @@ public final class PortalFlight implements ClientModInitializer {
         privacyKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.privacy", GLFW.GLFW_KEY_P, KeyMapping.Category.MISC));
         swimKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.swim", GLFW.GLFW_KEY_R, KeyMapping.Category.MISC));
         boatDescendKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.boat_descend", GLFW.GLFW_KEY_X, KeyMapping.Category.MISC));
+        playerEspKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.player_esp", GLFW.GLFW_KEY_F7, KeyMapping.Category.MISC));
+        mobEspKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.mob_esp", GLFW.GLFW_KEY_F8, KeyMapping.Category.MISC));
+        storageFinderKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.storage_finder", GLFW.GLFW_KEY_F9, KeyMapping.Category.MISC));
+        autoSprintKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.auto_sprint", GLFW.GLFW_KEY_F10, KeyMapping.Category.MISC));
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            while (playerEspKey.consumeClick()) { playerEsp = !playerEsp; message(client, "Player ESP " + (playerEsp ? "ON" : "OFF")); }
+            while (mobEspKey.consumeClick()) { mobEsp = !mobEsp; message(client, "Mob ESP " + (mobEsp ? "ON" : "OFF")); }
+            while (storageFinderKey.consumeClick()) { storageFinder = !storageFinder; message(client, "Storage Finder " + (storageFinder ? "ON" : "OFF")); }
+            while (autoSprintKey.consumeClick()) { autoSprint = !autoSprint; message(client, "Auto Sprint " + (autoSprint ? "ON" : "OFF")); }
             while (swimKey.consumeClick()) { swimBoost = !swimBoost; message(client, "Swim Boost " + (swimBoost ? "ON" : "OFF")); }
             while (privacyKey.consumeClick()) { privacyMode = !privacyMode; message(client, "Spectator Privacy " + (privacyMode ? "ON" : "OFF")); }
             while (noFallKey.consumeClick()) { noFall = !noFall; message(client, "Safe Fall " + (noFall ? "ON" : "OFF")); }
@@ -54,7 +70,46 @@ public final class PortalFlight implements ClientModInitializer {
                 if (freecam && player != null) freecamPosition = player.getEyePosition();
                 message(client, "Freecam " + (freecam ? "ON" : "OFF"));
             }
-            if (player == null || client.level == null) { spectatorNearby = false; return; }
+            if (player == null || client.level == null) { spectatorNearby = false; glowingByMod.clear(); return; }
+            if (autoSprint && !freecam && !player.isShiftKeyDown() && player.getVehicle() == null && client.options.keyUp.isDown()) {
+                player.setSprinting(true);
+            }
+            // Local glowing outlines for visible-to-client entities only. Restore our own changes.
+            if (++espTick % 5 == 0) {
+                Set<UUID> stillGlowing = new HashSet<>();
+                for (var entity : client.level.entitiesForRendering()) {
+                    if (entity == player || !(entity instanceof LivingEntity)) continue;
+                    boolean selected = entity instanceof Player ? playerEsp : mobEsp;
+                    UUID id = entity.getUUID();
+                    if (selected && entity.distanceToSqr(player) < 96.0 * 96.0) {
+                        if (!entity.hasGlowingTag()) {
+                            entity.setGlowingTag(true);
+                            glowingByMod.add(id);
+                        }
+                        if (glowingByMod.contains(id)) stillGlowing.add(id);
+                    } else if (glowingByMod.contains(id)) {
+                        entity.setGlowingTag(false);
+                    }
+                }
+                glowingByMod.retainAll(stillGlowing);
+            }
+            // Coordinate-based storage finder for blocks in already-loaded chunks.
+            // This is not through-wall block ESP.
+            if (storageFinder && ++storageTick % 40 == 0) {
+                BlockPos origin = player.blockPosition();
+                BlockPos nearest = null;
+                double bestDistance = Double.MAX_VALUE;
+                for (int dx = -16; dx <= 16; dx++) for (int dy = -8; dy <= 8; dy++) for (int dz = -16; dz <= 16; dz++) {
+                    BlockPos pos = origin.offset(dx, dy, dz);
+                    if (!client.level.hasChunkAt(pos)) continue;
+                    var state = client.level.getBlockState(pos);
+                    if (!state.is(Blocks.CHEST) && !state.is(Blocks.TRAPPED_CHEST) && !state.is(Blocks.BARREL)) continue;
+                    double d = pos.distSqr(origin);
+                    if (d < bestDistance) { bestDistance = d; nearest = pos.immutable(); }
+                }
+                if (nearest != null)
+                    player.displayClientMessage(Component.literal("§6Storage: " + nearest.getX() + ", " + nearest.getY() + ", " + nearest.getZ()), true);
+            }
             // Only spectator players whose entities the server sends can be detected.
             // Hidden moderators or remote spectator cameras cannot be discovered client-side.
             if (++spectatorCheckTick % 20 == 0) {
