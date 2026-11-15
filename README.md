@@ -8,6 +8,8 @@ These are original PortalFlight implementations inspired by common functionality
 
 ## Keybinds
 
+- **F12** — Orbit Combat: aim at and circle the closest non-spectator player within 3.2 blocks, jump and attack on the cooldown during descent. Turn off with F12; this only attempts critical hits and never guarantees damage or kills. Avoid using in combination with Fly or Freecam.
+
 All PortalFlight module toggles and Boat Fly Descend are rebindable in **Options → Controls → Key Binds**, under **Miscellaneous**. Movement, jump, sneak and sprint use Minecraft's own rebindable controls.
 
 - **F7** — Player ESP (client-side glowing outlines, optional tracer lines)
