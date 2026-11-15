@@ -4,8 +4,11 @@ Client-side Minecraft utility mod source project.
 
 ## Keybinds
 
+All PortalFlight module toggles and Boat Fly Descend are rebindable in **Options → Controls → Key Binds**, under **Miscellaneous**. Movement, jump, sneak and sprint use Minecraft's own rebindable controls.
+
+- **R** — Toggle very fast Swim Boost (in water; use movement keys and Jump/Sneak to steer vertically)
 - **V** — Speed boost
-- **B** — Toggle Boat Fly; Space rises, **X descends** (Shift dismounts as usual)
+- **B** — Toggle Boat Fly; Space rises, **X descends** (rebindable in controls) (Shift dismounts as usual)
 - **N** — Find nearby *loaded* end portal frames (coordinates only, not through-wall ESP)
 - **G** — Toggle normal Fly; Space rises, Shift descends
 - **Ctrl while moving** — Faster Fly / Sprint Fly
