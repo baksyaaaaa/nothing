@@ -4,7 +4,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
-import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -64,8 +64,8 @@ public final class PortalFlight implements ClientModInitializer {
             if (!espTracers || (!playerEsp && !mobEsp)) return;
             Minecraft mc = Minecraft.getInstance();
             if (mc.level == null || mc.player == null || context.consumers() == null) return;
-            Vec3 camera = mc.gameRenderer.getMainCamera().getPosition();
-            var lines = context.consumers().getBuffer(RenderType.lines());
+            Vec3 camera = mc.gameRenderer.getMainCamera().position();
+            var lines = context.consumers().getBuffer(RenderTypes.lines());
             for (var entity : mc.level.entitiesForRendering()) {
                 if (entity == mc.player || !(entity instanceof LivingEntity)) continue;
                 boolean selected = entity instanceof Player ? playerEsp : mobEsp;
