@@ -8,13 +8,14 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 
 public final class PortalFlight implements ClientModInitializer {
     private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey;
-    private static boolean speed, boatFly, portalScan, fly, noFall, hungerSaver;
+    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver;
     public static boolean freecam;
     public static Vec3 freecamPosition = Vec3.ZERO;
     private static final double FREECAM_SPEED = 0.75;
@@ -34,7 +35,7 @@ public final class PortalFlight implements ClientModInitializer {
         hungerKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.hunger", GLFW.GLFW_KEY_H, KeyMapping.Category.MISC));
         freecamKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.freecam", GLFW.GLFW_KEY_F6, KeyMapping.Category.MISC));
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            while (noFallKey.consumeClick()) { noFall = !noFall; message(client, "No Fall (client-side) " + (noFall ? "ON" : "OFF")); }
+            while (noFallKey.consumeClick()) { noFall = !noFall; message(client, "Safe Fall " + (noFall ? "ON" : "OFF")); }
             while (hungerKey.consumeClick()) { hungerSaver = !hungerSaver; message(client, "Hunger Saver (no sprint restriction) " + (hungerSaver ? "ON" : "OFF")); }
             while (flyKey.consumeClick()) { fly = !fly; message(client, "Fly " + (fly ? "ON" : "OFF")); }
             while (speedKey.consumeClick()) { speed = !speed; message(client, "Speed " + (speed ? "ON" : "OFF")); }
@@ -47,7 +48,15 @@ public final class PortalFlight implements ClientModInitializer {
                 message(client, "Freecam " + (freecam ? "ON" : "OFF"));
             }
             if (player == null || client.level == null) return;
-            if (noFall) player.fallDistance = 0; // Server-authoritative; may not prevent fall damage.
+            if (noFall) {
+                // Local fall-distance reset and an explicit grounded-status packet during falls.
+                // Servers may still calculate fall damage from authoritative movement history.
+                boolean falling = !player.onGround() && player.getDeltaMovement().y < -0.10;
+                if (falling && player.getVehicle() == null && !freecam && client.getConnection() != null) {
+                    client.getConnection().send(new ServerboundMovePlayerPacket.StatusOnly(true, false));
+                }
+                player.fallDistance = 0;
+            }
             // Hunger Saver intentionally does not interfere with sprinting.
             if (freecam) {
                 long window = client.getWindow().handle();
