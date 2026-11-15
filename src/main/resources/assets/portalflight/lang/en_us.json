@@ -8,5 +8,9 @@
   "key.portalflight.freecam": "Freecam",
   "key.portalflight.privacy": "Spectator Privacy",
   "key.portalflight.swim": "Toggle Swim Boost",
-  "key.portalflight.boat_descend": "Boat Fly: Descend"
+  "key.portalflight.boat_descend": "Boat Fly: Descend",
+  "key.portalflight.player_esp": "Toggle Player ESP",
+  "key.portalflight.mob_esp": "Toggle Mob ESP",
+  "key.portalflight.storage_finder": "Toggle Storage Finder",
+  "key.portalflight.auto_sprint": "Toggle Auto Sprint"
 }
