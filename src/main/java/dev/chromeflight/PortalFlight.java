@@ -76,8 +76,8 @@ public final class PortalFlight implements ClientModInitializer {
                 int red = isPlayer ? 50 : 255;
                 int green = isPlayer ? 225 : 170;
                 int blue = isPlayer ? 255 : 50;
-                lines.addVertex(0.0f, 0.0f, 0.0f).setColor(red, green, blue, 255).setNormal(0, 1, 0);
-                lines.addVertex((float) end.x, (float) end.y, (float) end.z).setColor(red, green, blue, 255).setNormal(0, 1, 0);
+                lines.addVertex(0.0f, 0.0f, 0.0f).setColor(red, green, blue, 255).setNormal(0, 1, 0).setLineWidth(2.0f);
+                lines.addVertex((float) end.x, (float) end.y, (float) end.z).setColor(red, green, blue, 255).setNormal(0, 1, 0).setLineWidth(2.0f);
             }
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
