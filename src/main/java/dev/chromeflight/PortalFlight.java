@@ -13,6 +13,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 import java.util.HashSet;
 import java.util.Set;
@@ -21,8 +22,8 @@ import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 
 public final class PortalFlight implements ClientModInitializer {
-    private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey, swimKey, boatDescendKey, playerEspKey, mobEspKey, storageFinderKey, autoSprintKey, tracerKey;
-    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true;
+    private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey, swimKey, boatDescendKey, playerEspKey, mobEspKey, storageFinderKey, autoSprintKey, tracerKey, orbitCombatKey;
+    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat;
     public static boolean freecam;
     public static Vec3 freecamPosition = Vec3.ZERO;
     private static final double FREECAM_SPEED = 0.75;
@@ -31,6 +32,9 @@ public final class PortalFlight implements ClientModInitializer {
     private static final double SWIM_BOOST_SPEED = 1.65;
     private static int scanTick;
     private static int espTick;
+    private static int combatAttackTicks;
+    private static final double COMBAT_RANGE = 3.2;
+    private static final double ORBIT_SPEED = 0.22;
     private static int storageTick;
     private static final Set<UUID> glowingByMod = new HashSet<>();
     private static int spectatorCheckTick;
@@ -54,6 +58,7 @@ public final class PortalFlight implements ClientModInitializer {
         storageFinderKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.storage_finder", GLFW.GLFW_KEY_F9, KeyMapping.Category.MISC));
         autoSprintKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.auto_sprint", GLFW.GLFW_KEY_F10, KeyMapping.Category.MISC));
         tracerKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.tracers", GLFW.GLFW_KEY_F11, KeyMapping.Category.MISC));
+        orbitCombatKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.orbit_combat", GLFW.GLFW_KEY_F12, KeyMapping.Category.MISC));
         // Tracers follow Player/Mob ESP only for entities the server actually sends.
         WorldRenderEvents.BEFORE_DEBUG_RENDER.register(context -> {
             if (!espTracers || (!playerEsp && !mobEsp)) return;
@@ -76,6 +81,11 @@ public final class PortalFlight implements ClientModInitializer {
             }
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            while (orbitCombatKey.consumeClick()) {
+                orbitCombat = !orbitCombat;
+                combatAttackTicks = 0;
+                message(client, "Orbit Combat " + (orbitCombat ? "ON" : "OFF"));
+            }
             while (tracerKey.consumeClick()) { espTracers = !espTracers; message(client, "ESP Tracers " + (espTracers ? "ON" : "OFF")); }
             while (playerEspKey.consumeClick()) { playerEsp = !playerEsp; message(client, "Player ESP " + (playerEsp ? "ON" : "OFF")); }
             while (mobEspKey.consumeClick()) { mobEsp = !mobEsp; message(client, "Mob ESP " + (mobEsp ? "ON" : "OFF")); }
@@ -156,7 +166,7 @@ public final class PortalFlight implements ClientModInitializer {
                     }
                 }
             }
-            if (noFall) {
+            if (noFall && !orbitCombat) {
                 // Local fall-distance reset and an explicit grounded-status packet during falls.
                 // Servers may still calculate fall damage from authoritative movement history.
                 boolean falling = !player.onGround() && player.getDeltaMovement().y < -0.10;
@@ -164,6 +174,50 @@ public final class PortalFlight implements ClientModInitializer {
                     client.getConnection().send(new ServerboundMovePlayerPacket.StatusOnly(true, false));
                 }
                 player.fallDistance = 0;
+            }
+            // Orbit Combat selects a nearby non-spectator player, circles them, aims and
+            // attacks only when a cooldown is ready. It cannot force server-side criticals.
+            if (orbitCombat && !freecam && !fly && player.getVehicle() == null && client.gameMode != null && client.screen == null) {
+                Player target = null;
+                double best = COMBAT_RANGE * COMBAT_RANGE;
+                for (Player other : client.level.players()) {
+                    if (other == player || !other.isAlive() || other.isSpectator()) continue;
+                    double dist = player.distanceToSqr(other);
+                    if (dist < best) { best = dist; target = other; }
+                }
+                if (target != null) {
+                    Vec3 toward = target.getEyePosition().subtract(player.getEyePosition());
+                    double horizontal = Math.sqrt(toward.x * toward.x + toward.z * toward.z);
+                    if (horizontal > 0.0001) {
+                        player.setYRot((float)Math.toDegrees(Math.atan2(-toward.x, toward.z)));
+                        player.setXRot((float)-Math.toDegrees(Math.atan2(toward.y, horizontal)));
+                    }
+                    // Circle clockwise, nudging inward/outward to keep melee reach.
+                    Vec3 delta = target.position().subtract(player.position());
+                    double radius = Math.sqrt(delta.x * delta.x + delta.z * delta.z);
+                    if (radius > 0.0001) {
+                        Vec3 radial = new Vec3(delta.x / radius, 0, delta.z / radius);
+                        Vec3 tangent = new Vec3(-radial.z, 0, radial.x);
+                        Vec3 orbitMove = tangent.scale(ORBIT_SPEED)
+                            .add(radial.scale(Math.max(-0.12, Math.min(0.12, (radius - 2.3) * 0.14))));
+                        Vec3 current = player.getDeltaMovement();
+                        player.setDeltaMovement(orbitMove.x, current.y, orbitMove.z);
+                    }
+                    // A genuine critical requires descending while airborne, among other
+                    // conditions. Jumping is not equivalent to forcing critical damage.
+                    float charge = player.getAttackStrengthScale(0.5f);
+                    if (player.onGround() && charge >= 0.90f && !player.isInWater()) {
+                        player.jumpFromGround();
+                    }
+                    boolean descending = !player.onGround() && player.getDeltaMovement().y < -0.05;
+                    if (charge >= 0.90f && descending && !player.isInWater()) {
+                        client.gameMode.attack(player, target);
+                        player.swing(InteractionHand.MAIN_HAND);
+                        combatAttackTicks = 0;
+                    } else {
+                        combatAttackTicks++;
+                    }
+                }
             }
             // Hunger Saver intentionally does not interfere with sprinting.
             if (freecam) {
