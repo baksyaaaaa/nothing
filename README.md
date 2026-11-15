@@ -10,8 +10,9 @@ These are original PortalFlight implementations inspired by common functionality
 
 All PortalFlight module toggles and Boat Fly Descend are rebindable in **Options → Controls → Key Binds**, under **Miscellaneous**. Movement, jump, sneak and sprint use Minecraft's own rebindable controls.
 
-- **F7** — Player ESP (client-side glowing outlines)
-- **F8** — Mob ESP (client-side glowing outlines)
+- **F7** — Player ESP (client-side glowing outlines, optional tracer lines)
+- **F8** — Mob ESP (client-side glowing outlines, optional tracer lines)
+- **F11** — Toggle ESP Tracers (enabled by default; draws a line from your view to outlined players and mobs)
 - **F9** — Storage Finder (coordinates of nearby loaded chests/barrels)
 - **F10** — Auto Sprint
 - **R** — Toggle very fast Swim Boost (in water; use movement keys and Jump/Sneak to steer vertically)
