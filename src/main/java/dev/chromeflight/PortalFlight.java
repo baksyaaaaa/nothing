@@ -3,6 +3,8 @@ package dev.chromeflight;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -19,8 +21,8 @@ import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 
 public final class PortalFlight implements ClientModInitializer {
-    private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey, swimKey, boatDescendKey, playerEspKey, mobEspKey, storageFinderKey, autoSprintKey;
-    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint;
+    private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey, swimKey, boatDescendKey, playerEspKey, mobEspKey, storageFinderKey, autoSprintKey, tracerKey;
+    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true;
     public static boolean freecam;
     public static Vec3 freecamPosition = Vec3.ZERO;
     private static final double FREECAM_SPEED = 0.75;
@@ -51,7 +53,30 @@ public final class PortalFlight implements ClientModInitializer {
         mobEspKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.mob_esp", GLFW.GLFW_KEY_F8, KeyMapping.Category.MISC));
         storageFinderKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.storage_finder", GLFW.GLFW_KEY_F9, KeyMapping.Category.MISC));
         autoSprintKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.auto_sprint", GLFW.GLFW_KEY_F10, KeyMapping.Category.MISC));
+        tracerKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.tracers", GLFW.GLFW_KEY_F11, KeyMapping.Category.MISC));
+        // Tracers follow Player/Mob ESP only for entities the server actually sends.
+        WorldRenderEvents.BEFORE_DEBUG_RENDER.register(context -> {
+            if (!espTracers || (!playerEsp && !mobEsp)) return;
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.level == null || mc.player == null || context.consumers() == null) return;
+            Vec3 camera = mc.gameRenderer.getMainCamera().getPosition();
+            var lines = context.consumers().getBuffer(RenderType.lines());
+            for (var entity : mc.level.entitiesForRendering()) {
+                if (entity == mc.player || !(entity instanceof LivingEntity)) continue;
+                boolean selected = entity instanceof Player ? playerEsp : mobEsp;
+                if (!selected || entity.distanceToSqr(mc.player) >= 96.0 * 96.0) continue;
+                Vec3 end = entity.position().add(0, entity.getBbHeight() * 0.5, 0).subtract(camera);
+                // Start at the camera, end at the entity outline. Player = cyan, mob = orange.
+                boolean isPlayer = entity instanceof Player;
+                int red = isPlayer ? 50 : 255;
+                int green = isPlayer ? 225 : 170;
+                int blue = isPlayer ? 255 : 50;
+                lines.addVertex(0.0f, 0.0f, 0.0f).setColor(red, green, blue, 255).setNormal(0, 1, 0);
+                lines.addVertex((float) end.x, (float) end.y, (float) end.z).setColor(red, green, blue, 255).setNormal(0, 1, 0);
+            }
+        });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            while (tracerKey.consumeClick()) { espTracers = !espTracers; message(client, "ESP Tracers " + (espTracers ? "ON" : "OFF")); }
             while (playerEspKey.consumeClick()) { playerEsp = !playerEsp; message(client, "Player ESP " + (playerEsp ? "ON" : "OFF")); }
             while (mobEspKey.consumeClick()) { mobEsp = !mobEsp; message(client, "Mob ESP " + (mobEsp ? "ON" : "OFF")); }
             while (storageFinderKey.consumeClick()) { storageFinder = !storageFinder; message(client, "Storage Finder " + (storageFinder ? "ON" : "OFF")); }
