@@ -1,19 +1,20 @@
 # PortalFlight — Fabric 1.21.11
 
-Source project for Minecraft Java 1.21.11, Fabric, Java 21.
+Client-side Minecraft utility mod source project.
 
-## Controls
-- V: speed boost (client-side, may be rejected by multiplayer servers)
-- B: boat vertical movement (Space up, Shift down; may be rejected by multiplayer servers)
-- N: locate nearest loaded end portal frame within 24 horizontal / 16 vertical blocks, showing coordinates in the action bar
+## Keybinds
 
-**Important:** This is an untested source project, not a compiled mod JAR. Portal locator displays coordinates; it does **not** draw an ESP overlay through walls. Multiplayer servers can reject movement changes. This mod does not bypass anti-cheat.
+- **V** — Speed boost
+- **B** — Toggle Boat Fly; Space rises, **X descends** (Shift dismounts as usual)
+- **N** — Find nearby *loaded* end portal frames (coordinates only, not through-wall ESP)
+- **G** — Toggle normal Fly; Space rises, Shift descends
+- **Ctrl while moving** — Faster Fly / Sprint Fly
+- **F6** — Toggle Freecam
+- **J** — Toggle client-side No Fall attempt
+- **H** — Toggle Hunger Saver indicator; this does not disable sprinting or change server hunger
 
-## Build
-1. Install JDK 21 and Gradle 8.14+.
-2. Open a terminal in this folder.
-3. Run `gradle build`.
-4. If compilation succeeds, find the remapped mod JAR in `build/libs/` (not the `-sources.jar`).
-5. Install Fabric Loader and Fabric API for Minecraft 1.21.11 and place the JAR in `.minecraft/mods`.
+## Building
 
-The source uses Mojang mappings. Fabric/MC API signatures may need adjustment because this project has not been compiled against the Minecraft dependencies in this environment.
+Every push to main invokes GitHub Actions **Build PortalFlight**. Get the built JAR from the `PortalFlight-Mod` artifact on the [Actions page](https://github.com/baksyaaaaa/nothing/actions) **only if the workflow succeeds**. Use the JAR without `-sources` in your Fabric mods folder, alongside compatible Fabric API.
+
+**Important limitations:** This is experimental, not yet verified to compile or work in-game. Movement and damage/hunger are server-authoritative on multiplayer servers; this mod doesn't grant server permissions or bypass server restrictions. Freecam is experimental. Hunger Saver currently does not implement server-side hunger prevention.
