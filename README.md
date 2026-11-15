@@ -10,7 +10,7 @@ Client-side Minecraft utility mod source project.
 - **G** — Toggle normal Fly; Space rises, Shift descends
 - **Ctrl while moving** — Faster Fly / Sprint Fly
 - **F6** — Toggle Freecam
-- **J** — Toggle client-side No Fall attempt
+- **J** — Toggle Safe Fall (enabled by default). While airborne and falling, sends an on-ground status packet and resets client fall distance; this does not guarantee fall protection on servers.
 - **H** — Toggle Hunger Saver indicator; this does not disable sprinting or change server hunger
 
 ## Building
