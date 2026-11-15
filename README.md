@@ -2,10 +2,18 @@
 
 Client-side Minecraft utility mod source project.
 
+## New ESP and utility modules
+
+These are original PortalFlight implementations inspired by common functionality in Anubis, Meteor and Krypton; no third-party client source code was copied. Entity ESP outlines only entities the server sends to your client. Storage Finder reports the nearest loaded chest/barrel coordinates, not through-wall block outlines. No auto-combat or anti-cheat bypass added.
+
 ## Keybinds
 
 All PortalFlight module toggles and Boat Fly Descend are rebindable in **Options → Controls → Key Binds**, under **Miscellaneous**. Movement, jump, sneak and sprint use Minecraft's own rebindable controls.
 
+- **F7** — Player ESP (client-side glowing outlines)
+- **F8** — Mob ESP (client-side glowing outlines)
+- **F9** — Storage Finder (coordinates of nearby loaded chests/barrels)
+- **F10** — Auto Sprint
 - **R** — Toggle very fast Swim Boost (in water; use movement keys and Jump/Sneak to steer vertically)
 - **V** — Speed boost
 - **B** — Toggle Boat Fly; Space rises, **X descends** (rebindable in controls) (Shift dismounts as usual)
