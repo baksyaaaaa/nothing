@@ -50,7 +50,7 @@ public final class PortalFlight implements ClientModInitializer {
             if (noFall) player.fallDistance = 0; // Server-authoritative; may not prevent fall damage.
             // Hunger Saver intentionally does not interfere with sprinting.
             if (freecam) {
-                long window = client.getWindow().getWindow();
+                long window = client.getWindow().handle();
                 boolean forward = GLFW.glfwGetKey(window, GLFW.GLFW_KEY_W) == GLFW.GLFW_PRESS;
                 boolean back = GLFW.glfwGetKey(window, GLFW.GLFW_KEY_S) == GLFW.GLFW_PRESS;
                 boolean left = GLFW.glfwGetKey(window, GLFW.GLFW_KEY_A) == GLFW.GLFW_PRESS;
@@ -94,7 +94,7 @@ public final class PortalFlight implements ClientModInitializer {
             if (boatFly && player.getVehicle() != null && player.getVehicle().getType().toString().contains("boat")) {
                 var vehicle = player.getVehicle();
                 Vec3 v = vehicle.getDeltaMovement();
-                double up = client.options.keyJump.isDown() ? 0.35 : (GLFW.glfwGetKey(client.getWindow().getWindow(), GLFW.GLFW_KEY_X) == GLFW.GLFW_PRESS ? -0.25 : 0.04);
+                double up = client.options.keyJump.isDown() ? 0.35 : (GLFW.glfwGetKey(client.getWindow().handle(), GLFW.GLFW_KEY_X) == GLFW.GLFW_PRESS ? -0.25 : 0.04);
                 vehicle.setDeltaMovement(v.x, up, v.z);
             }
             if (portalScan && ++scanTick % 30 == 0) {
