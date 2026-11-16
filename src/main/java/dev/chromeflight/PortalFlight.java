@@ -45,6 +45,14 @@ public final class PortalFlight implements ClientModInitializer {
     private static int spectatorCheckTick;
     private static BlockPos nearestFrame;
     private static final double SPEED_FACTOR = 1.8;
+    // Client-side comfort limits; they do not override the server's vehicle simulation.
+    private static final double BOAT_VERTICAL_ACCELERATION = 0.045;
+    private static final double BOAT_ASCEND_SPEED = 0.30;
+    private static final double BOAT_DESCEND_SPEED = -0.25;
+    private static final double BOAT_CORRECTION_THRESHOLD = 4.5;
+    private static int trackedBoatId = -1;
+    private static Vec3 lastBoatPosition;
+    private static Vec3 expectedBoatMovement = Vec3.ZERO;
 
     @Override public void onInitializeClient() {
         // KeyMapping.Category constructor details vary by mappings; use the vanilla miscellaneous category.
@@ -126,7 +134,11 @@ public final class PortalFlight implements ClientModInitializer {
             while (hungerKey.consumeClick()) { hungerSaver = !hungerSaver; message(client, "Hunger Saver (no sprint restriction) " + (hungerSaver ? "ON" : "OFF")); }
             while (flyKey.consumeClick()) { fly = !fly; message(client, "Fly " + (fly ? "ON" : "OFF")); }
             while (speedKey.consumeClick()) { speed = !speed; message(client, "Speed " + (speed ? "ON" : "OFF")); }
-            while (boatKey.consumeClick()) { boatFly = !boatFly; message(client, "Boat Fly " + (boatFly ? "ON" : "OFF")); }
+            while (boatKey.consumeClick()) {
+                boatFly = !boatFly;
+                resetBoatTracking();
+                message(client, "Boat Fly " + (boatFly ? "ON" : "OFF"));
+            }
             while (portalKey.consumeClick()) { portalScan = !portalScan; nearestFrame = null; message(client, "Portal locator " + (portalScan ? "ON" : "OFF")); }
             LocalPlayer player = client.player;
             while (freecamKey.consumeClick()) {
@@ -334,11 +346,40 @@ public final class PortalFlight implements ClientModInitializer {
                 Vec3 v = player.getDeltaMovement();
                 player.setDeltaMovement(v.x * SPEED_FACTOR, v.y, v.z * SPEED_FACTOR);
             }
-            if (boatFly && player.getVehicle() != null && player.getVehicle().getType().toString().contains("boat")) {
+            if (boatFly && player.getVehicle() != null
+                    && player.getVehicle().getType().toString().contains("boat")) {
                 var vehicle = player.getVehicle();
-                Vec3 v = vehicle.getDeltaMovement();
-                double up = client.options.keyJump.isDown() ? 0.35 : (boatDescendKey.isDown() ? -0.25 : 0.04);
-                vehicle.setDeltaMovement(v.x, up, v.z);
+                Vec3 position = vehicle.position();
+                if (trackedBoatId != vehicle.getId()) {
+                    trackedBoatId = vehicle.getId();
+                    lastBoatPosition = position;
+                    expectedBoatMovement = vehicle.getDeltaMovement();
+                } else if (lastBoatPosition != null) {
+                    // A large jump inconsistent with expected movement is a possible
+                    // server correction. Stop forcing motion instead of fighting it.
+                    Vec3 actualDisplacement = position.subtract(lastBoatPosition);
+                    double discrepancy = actualDisplacement.subtract(expectedBoatMovement).length();
+                    if (discrepancy > BOAT_CORRECTION_THRESHOLD) {
+                        boatFly = false;
+                        resetBoatTracking();
+                        message(client, "Boat Fly paused: possible server position correction");
+                    }
+                }
+                if (boatFly) {
+                    Vec3 velocity = vehicle.getDeltaMovement();
+                    // Leave horizontal boat steering to vanilla, smoothly approach
+                    // requested vertical motion without spikes or packet spoofing.
+                    double targetY = client.options.keyJump.isDown() ? BOAT_ASCEND_SPEED
+                            : boatDescendKey.isDown() ? BOAT_DESCEND_SPEED : 0.0;
+                    double diff = Math.max(-BOAT_VERTICAL_ACCELERATION,
+                            Math.min(BOAT_VERTICAL_ACCELERATION, targetY - velocity.y));
+                    Vec3 newVelocity = new Vec3(velocity.x, velocity.y + diff, velocity.z);
+                    vehicle.setDeltaMovement(newVelocity);
+                    expectedBoatMovement = newVelocity;
+                    lastBoatPosition = position;
+                }
+            } else {
+                resetBoatTracking();
             }
             if (portalScan && ++scanTick % 30 == 0) {
                 BlockPos center = player.blockPosition();
@@ -411,7 +452,7 @@ public final class PortalFlight implements ClientModInitializer {
         switch (id) {
             case "fly" -> { fly = !fly; if (fly) disableNoclip(mc); }
             case "speed" -> speed = !speed;
-            case "boat" -> boatFly = !boatFly;
+            case "boat" -> { boatFly = !boatFly; resetBoatTracking(); }
             case "swim" -> swimBoost = !swimBoost;
             case "noclip" -> {
                 noclip = !noclip;
@@ -440,6 +481,12 @@ public final class PortalFlight implements ClientModInitializer {
             case "privacy" -> privacyMode = !privacyMode;
             case "portal" -> { portalScan = !portalScan; nearestFrame = null; }
         }
+    }
+
+    private static void resetBoatTracking() {
+        trackedBoatId = -1;
+        lastBoatPosition = null;
+        expectedBoatMovement = Vec3.ZERO;
     }
 
     private static void disableNoclip(Minecraft client) {
