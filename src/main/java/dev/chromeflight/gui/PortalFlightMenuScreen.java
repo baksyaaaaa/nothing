@@ -43,7 +43,7 @@ public final class PortalFlightMenuScreen extends Screen {
     protected void init() {
         panelWidth = Math.min(390, this.width - 18);
         panelX = (this.width - panelWidth) / 2;
-        panelY = Math.max(12, (this.height - 254) / 2);
+        panelY = Math.max(12, (this.height - 285) / 2);
         int inner = panelWidth - 20;
         int tabWidth = inner / CATEGORIES.length;
 
@@ -88,7 +88,7 @@ public final class PortalFlightMenuScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        int bottom = panelY + 254;
+        int bottom = panelY + 285;
         graphics.fill(0, 0, this.width, this.height, 0x99000000);
         graphics.fill(panelX - 2, panelY - 2, panelX + panelWidth + 2, bottom + 2, 0xFF101622);
         graphics.fill(panelX, panelY, panelX + panelWidth, panelY + 32, 0xFF202C41);
