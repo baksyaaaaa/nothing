@@ -58,6 +58,12 @@ public final class PortalFlight implements ClientModInitializer {
     private static final double COMBAT_VERTICAL_SPEED = 0.27;
     private static final double NOCLIP_SPEED = 0.55;
     private static int storageTick;
+    private static final List<BlockPos> nearbyStorage = new ArrayList<>();
+    private static final int STORAGE_RADIUS = 24;
+    private static final int STORAGE_VERTICAL_RADIUS = 12;
+    private static final int STORAGE_MAX_RESULTS = 256;
+    private static BlockPos lastStorageScanOrigin;
+    private static String storageWorldKey = "";
     private static int spectatorCheckTick;
     private static String spectatorWarning = "";
     private static final Deque<String> staffWatchEvents = new ArrayDeque<>();
@@ -112,13 +118,28 @@ public final class PortalFlight implements ClientModInitializer {
         // Render outlines and optional tracers for entities the client already knows about.
         // WorldRenderContext matrices must be used when submitting vertices in 1.21.11.
         WorldRenderEvents.BEFORE_DEBUG_RENDER.register(context -> {
-            if (!playerEsp && !mobEsp) return;
+            if (!playerEsp && !mobEsp && !storageFinder) return;
             Minecraft mc = Minecraft.getInstance();
             if (mc.level == null || mc.player == null || context.consumers() == null || context.matrices() == null) return;
             Vec3 camera = mc.gameRenderer.getMainCamera().position();
             Matrix4f pose = context.matrices().last().pose();
             VertexConsumer lines = context.consumers().getBuffer(RenderTypes.lines());
             Vec3 tracerStart = camera.add(mc.player.getLookAngle().scale(0.65));
+            if (storageFinder) {
+                // Draw client-known container blocks in world space, camera-relative.
+                for (BlockPos pos : nearbyStorage) {
+                    if (!mc.level.hasChunkAt(pos)) continue;
+                    var state = mc.level.getBlockState(pos);
+                    if (!isStorageBlock(state)) continue;
+                    int red = state.is(Blocks.BARREL) ? 255 : 255;
+                    int green = state.is(Blocks.BARREL) ? 190 : 215;
+                    int blue = state.is(Blocks.BARREL) ? 65 : 40;
+                    AABB bounds = new AABB(pos).inflate(0.015)
+                            .move(-camera.x, -camera.y, -camera.z);
+                    drawEspBox(lines, pose, bounds, red, green, blue);
+                }
+            }
+            if (!playerEsp && !mobEsp) return;
             for (var entity : mc.level.entitiesForRendering()) {
                 if (entity == mc.player || !(entity instanceof LivingEntity) || !entity.isAlive()) continue;
                 boolean isPlayer = entity instanceof Player;
@@ -161,7 +182,12 @@ public final class PortalFlight implements ClientModInitializer {
             while (tracerKey.consumeClick()) { espTracers = !espTracers; message(client, "ESP Tracers " + (espTracers ? "ON" : "OFF")); }
             while (playerEspKey.consumeClick()) { playerEsp = !playerEsp; message(client, "Player ESP " + (playerEsp ? "ON" : "OFF")); }
             while (mobEspKey.consumeClick()) { mobEsp = !mobEsp; message(client, "Mob ESP " + (mobEsp ? "ON" : "OFF")); }
-            while (storageFinderKey.consumeClick()) { storageFinder = !storageFinder; message(client, "Storage Finder " + (storageFinder ? "ON" : "OFF")); }
+            while (storageFinderKey.consumeClick()) {
+                storageFinder = !storageFinder;
+                nearbyStorage.clear();
+                lastStorageScanOrigin = null;
+                message(client, "Storage ESP " + (storageFinder ? "ON" : "OFF"));
+            }
             while (autoSprintKey.consumeClick()) { autoSprint = !autoSprint; message(client, "Auto Sprint " + (autoSprint ? "ON" : "OFF")); }
             while (swimKey.consumeClick()) { swimBoost = !swimBoost; message(client, "Swim Boost " + (swimBoost ? "ON" : "OFF")); }
             while (privacyKey.consumeClick()) { privacyMode = !privacyMode; message(client, "Spectator Privacy " + (privacyMode ? "ON" : "OFF")); }
@@ -185,6 +211,7 @@ public final class PortalFlight implements ClientModInitializer {
                 spectatorNearby = false; spectatorWarning = ""; noclip = false;
                 staffWatchEvents.clear(); watchWorldKey = ""; lastObservedServerMessage = "";
                 coordinateDestination = null; coordinateFlightLastPosition = null; coordinateFlightStuckTicks = 0;
+                nearbyStorage.clear(); lastStorageScanOrigin = null; storageWorldKey = "";
                 return;
             }
             if (noclip) {
@@ -203,22 +230,34 @@ public final class PortalFlight implements ClientModInitializer {
             if (autoSprint && !noclip && !freecam && !player.isShiftKeyDown() && player.getVehicle() == null && client.options.keyUp.isDown()) {
                 player.setSprinting(true);
             }
-            // Coordinate-based storage finder for blocks in already-loaded chunks.
-            // This is not through-wall block ESP.
-            if (storageFinder && ++storageTick % 40 == 0) {
+            // Refresh an inexpensive cache of only client-loaded containers.
+            // Rendering uses this cache rather than scanning the world every frame.
+            if (storageFinder) {
                 BlockPos origin = player.blockPosition();
-                BlockPos nearest = null;
-                double bestDistance = Double.MAX_VALUE;
-                for (int dx = -16; dx <= 16; dx++) for (int dy = -8; dy <= 8; dy++) for (int dz = -16; dz <= 16; dz++) {
-                    BlockPos pos = origin.offset(dx, dy, dz);
-                    if (!client.level.hasChunkAt(pos)) continue;
-                    var state = client.level.getBlockState(pos);
-                    if (!state.is(Blocks.CHEST) && !state.is(Blocks.TRAPPED_CHEST) && !state.is(Blocks.BARREL)) continue;
-                    double d = pos.distSqr(origin);
-                    if (d < bestDistance) { bestDistance = d; nearest = pos.immutable(); }
+                String dimensionKey = client.level.dimension().toString();
+                boolean movedFar = lastStorageScanOrigin == null
+                        || origin.distSqr(lastStorageScanOrigin) > 64.0;
+                if (!dimensionKey.equals(storageWorldKey) || movedFar
+                        || ++storageTick >= 40) {
+                    storageTick = 0;
+                    storageWorldKey = dimensionKey;
+                    lastStorageScanOrigin = origin.immutable();
+                    nearbyStorage.clear();
+                    BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
+                    for (int dx = -STORAGE_RADIUS; dx <= STORAGE_RADIUS; dx++) {
+                        for (int dz = -STORAGE_RADIUS; dz <= STORAGE_RADIUS; dz++) {
+                            for (int dy = -STORAGE_VERTICAL_RADIUS; dy <= STORAGE_VERTICAL_RADIUS; dy++) {
+                                cursor.set(origin.getX() + dx, origin.getY() + dy, origin.getZ() + dz);
+                                if (!client.level.hasChunkAt(cursor)) continue;
+                                if (!isStorageBlock(client.level.getBlockState(cursor))) continue;
+                                nearbyStorage.add(cursor.immutable());
+                                if (nearbyStorage.size() >= STORAGE_MAX_RESULTS) break;
+                            }
+                            if (nearbyStorage.size() >= STORAGE_MAX_RESULTS) break;
+                        }
+                        if (nearbyStorage.size() >= STORAGE_MAX_RESULTS) break;
+                    }
                 }
-                if (nearest != null)
-                    player.displayClientMessage(Component.literal("§6Storage: " + nearest.getX() + ", " + nearest.getY() + ", " + nearest.getZ()), true);
             }
             // Old evidence must not be carried across dimension/world transitions.
             String activeWorld = client.level.dimension().toString();
@@ -548,6 +587,11 @@ public final class PortalFlight implements ClientModInitializer {
             }
         });
     }
+    private static boolean isStorageBlock(net.minecraft.world.level.block.state.BlockState state) {
+        return state.is(Blocks.CHEST) || state.is(Blocks.TRAPPED_CHEST)
+                || state.is(Blocks.BARREL) || state.is(Blocks.ENDER_CHEST);
+    }
+
     private static void drawEspLine(VertexConsumer lines, Matrix4f pose,
             double x1, double y1, double z1, double x2, double y2, double z2,
             int red, int green, int blue) {
@@ -727,7 +771,11 @@ public final class PortalFlight implements ClientModInitializer {
             case "players" -> playerEsp = !playerEsp;
             case "mobs" -> mobEsp = !mobEsp;
             case "tracers" -> espTracers = !espTracers;
-            case "storage" -> storageFinder = !storageFinder;
+            case "storage" -> {
+                storageFinder = !storageFinder;
+                nearbyStorage.clear();
+                lastStorageScanOrigin = null;
+            }
             case "orbit" -> {
                 orbitCombat = !orbitCombat;
                 if (orbitCombat) { disableNoclip(mc); fly = false; freecam = false; }
