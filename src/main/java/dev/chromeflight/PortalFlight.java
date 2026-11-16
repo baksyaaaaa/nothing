@@ -366,13 +366,19 @@ public final class PortalFlight implements ClientModInitializer {
                 boolean right = client.options.keyRight.isDown();
                 boolean up = client.options.keyJump.isDown();
                 boolean down = client.options.keyShift.isDown();
+                // Freecam uses camera orientation, not the grounded player's horizontal movement.
+                // Positive strafe must point right (the previous vector was reversed).
                 double yaw = Math.toRadians(player.getYRot());
-                Vec3 forwardVec = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
-                Vec3 rightVec = new Vec3(-forwardVec.z, 0, forwardVec.x);
+                double pitch = Math.toRadians(player.getXRot());
+                Vec3 forwardVec = new Vec3(-Math.sin(yaw) * Math.cos(pitch),
+                        -Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
+                Vec3 rightVec = new Vec3(Math.cos(yaw), 0, Math.sin(yaw));
                 Vec3 movement = forwardVec.scale((forward ? 1 : 0) - (back ? 1 : 0))
                     .add(rightVec.scale((right ? 1 : 0) - (left ? 1 : 0)))
                     .add(0, (up ? 1 : 0) - (down ? 1 : 0), 0);
-                if (movement.lengthSqr() > 0) freecamPosition = freecamPosition.add(movement.normalize().scale(FREECAM_SPEED));
+                if (movement.lengthSqr() > 0) {
+                    freecamPosition = freecamPosition.add(movement.normalize().scale(FREECAM_SPEED));
+                }
                 client.options.keyUp.setDown(false);
                 client.options.keyDown.setDown(false);
                 client.options.keyLeft.setDown(false);
