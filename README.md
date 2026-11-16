@@ -32,7 +32,7 @@ All PortalFlight module toggles and Boat Fly Descend are rebindable in **Options
 - **G** — Toggle normal Fly; Space rises, Shift descends
 - **Ctrl while moving** — Faster Fly / Sprint Fly
 - **F6** — Toggle Freecam
-- **P** — Toggle Spectator Privacy (on by default): check for visible nearby spectators and automatically switch off Fly, Speed, Boat Fly, Freecam, and Safe Fall when one is detected
+- **P** — Toggle Spectator Privacy / Staff Watch (enabled by default). Checks every 0.5 seconds for spectator-mode players and invisible player entities within 128 blocks. Shows a persistent action-bar warning while a signal is present. Visible spectators trigger automatic disabling of movement/combat modules; invisible-player sightings only warn because invisibility does not prove someone is staff.
 - **J** — Toggle Safe Fall (enabled by default). While airborne and falling, sends an on-ground status packet and resets client fall distance; this does not guarantee fall protection on servers.
 - **H** — Toggle Hunger Saver indicator; this does not disable sprinting or change server hunger
 
@@ -44,7 +44,8 @@ Every push to main invokes GitHub Actions **Build PortalFlight**. Get the built 
 
 ## Spectator detection limitations
 
-Spectator detection only works for nearby spectator player entities that the multiplayer server sends to your client (48-block radius). Servers can hide spectator entities, including staff; those viewers cannot be detected by client-only code. **This mod does not make your player invisible to spectators.** Player visibility is controlled by the server, so hiding your player from other clients requires permissions/server-side functionality.
+Staff Watch now reports client-visible spectators and invisible players (which may simply be using an invisibility effect). It **cannot** see staff fully hidden by server-side vanish, distinguish ordinary invisible players from moderators, or know whether anyone is watching through a hidden camera. Absence of warnings is **not** evidence that no staff are watching. Alerts depend on the server sending the player entity to your client. Staff Watch is not an anti-ban guarantee.
+
 
 ## ESP rendering notes
 
