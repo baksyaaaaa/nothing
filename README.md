@@ -27,7 +27,7 @@ All PortalFlight module toggles and Boat Fly Descend are rebindable in **Options
 - **F10** — Auto Sprint
 - **R** — Toggle very fast Swim Boost (in water; use movement keys and Jump/Sneak to steer vertically)
 - **V** — Speed boost
-- **B** — Toggle Boat Fly; Space rises, **X descends** (rebindable in controls) (Shift dismounts as usual)
+- **B** — Toggle Boat Fly; Space rises, **X descends** (rebindable in controls; Shift still dismounts). Boat Fly now accelerates vertically smoothly and pauses if a large unexpected vehicle position change suggests a server correction.
 - **N** — Find nearby *loaded* end portal frames (coordinates only, not through-wall ESP)
 - **G** — Toggle normal Fly; Space rises, Shift descends
 - **Ctrl while moving** — Faster Fly / Sprint Fly
@@ -49,3 +49,7 @@ Spectator detection only works for nearby spectator player entities that the mul
 ## ESP rendering notes
 
 Player ESP (F7) and Mob ESP (F8) render wireframe bounding boxes around entities already available to the Minecraft client. ESP Tracers (F11, enabled by default) draws an optional line toward each selected target. The rendering uses camera-relative coordinates and the Fabric 1.21.11 render-context matrix. This is not guaranteed through-wall visibility and does not reveal hidden or unloaded entities.
+
+## Boat Fly stability
+
+Boat Fly adjusts vertical velocity gradually while leaving vanilla horizontal boat controls intact. It tracks the boat between ticks and automatically turns off if an unexpectedly large position change may indicate a server correction. This is a heuristic, not guaranteed detection. It uses vanilla networking and does **not** send fake grounded packets or bypass server anti-cheat. Multiplayer servers can still reject the motion.
