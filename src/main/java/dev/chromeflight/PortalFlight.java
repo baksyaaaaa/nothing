@@ -36,6 +36,8 @@ public final class PortalFlight implements ClientModInitializer {
     private static Vec3 coordinateDestination;
     private static int coordinateFlightStuckTicks;
     private static Vec3 coordinateFlightLastPosition;
+    private static int coordinateFlightStage;
+    private static double coordinateFlightCruiseY;
     private static final double COORDINATE_FLIGHT_MAX_SPEED = 3.5;
     private static final double COORDINATE_FLIGHT_ARRIVAL_RADIUS = 0.8;
     private static final double FREECAM_SPEED = 0.75;
@@ -391,38 +393,70 @@ public final class PortalFlight implements ClientModInitializer {
                 }
             }
             if (coordinateDestination != null) {
-                Vec3 delta = coordinateDestination.subtract(player.position());
+                Vec3 currentPosition = player.position();
+                Vec3 waypoint;
+                String flightPhase;
+                if (coordinateFlightStage == 0) {
+                    waypoint = new Vec3(currentPosition.x, coordinateFlightCruiseY, currentPosition.z);
+                    flightPhase = "Climbing";
+                    if (Math.abs(coordinateFlightCruiseY - currentPosition.y) < 0.8) {
+                        coordinateFlightStage = 1;
+                    }
+                } else if (coordinateFlightStage == 1) {
+                    waypoint = new Vec3(coordinateDestination.x, coordinateFlightCruiseY, coordinateDestination.z);
+                    flightPhase = "Cruising";
+                    double horizontalDistance = Math.hypot(coordinateDestination.x - currentPosition.x,
+                            coordinateDestination.z - currentPosition.z);
+                    if (horizontalDistance < 0.8
+                            && Math.abs(currentPosition.y - coordinateFlightCruiseY) < 1.2) {
+                        coordinateFlightStage = 2;
+                    }
+                } else {
+                    waypoint = coordinateDestination;
+                    flightPhase = "Descending";
+                }
+                // Recalculate immediately when moving from one flight phase to the next.
+                if (coordinateFlightStage == 1) {
+                    waypoint = new Vec3(coordinateDestination.x, coordinateFlightCruiseY, coordinateDestination.z);
+                    flightPhase = "Cruising";
+                } else if (coordinateFlightStage == 2) {
+                    waypoint = coordinateDestination;
+                    flightPhase = "Descending";
+                }
+                Vec3 delta = waypoint.subtract(currentPosition);
                 double remaining = delta.length();
-                if (remaining <= COORDINATE_FLIGHT_ARRIVAL_RADIUS) {
+                if (coordinateFlightStage == 2 && remaining <= COORDINATE_FLIGHT_ARRIVAL_RADIUS) {
                     stopCoordinateFlight();
                     player.setDeltaMovement(Vec3.ZERO);
                     message(client, "Coordinate Flight: arrived");
                 } else if (player.getVehicle() != null) {
                     stopCoordinateFlight();
-                    message(client, "Coordinate Flight stopped: dismounted required");
+                    message(client, "Coordinate Flight stopped: dismount required");
                 } else {
-                    // Flight is client-predicted movement, subject to server physics.
-                    // Slow down automatically at the target instead of overshooting.
+                    // Fast, smooth flight in three stages: up, horizontal, down.
+                    // This is not teleportation; servers may reject/correct movement.
                     double travelSpeed = Math.min(COORDINATE_FLIGHT_MAX_SPEED,
                             Math.max(0.12, remaining * 0.22));
                     player.setNoGravity(true);
-                    player.setDeltaMovement(delta.normalize().scale(travelSpeed));
+                    player.setDeltaMovement(remaining > 0.001
+                            ? delta.normalize().scale(travelSpeed) : Vec3.ZERO);
                     player.setOnGround(false);
                     player.fallDistance = 0;
                     if (coordinateFlightLastPosition != null
-                            && player.position().distanceToSqr(coordinateFlightLastPosition) < 0.0004) {
+                            && currentPosition.distanceToSqr(coordinateFlightLastPosition) < 0.0004) {
                         coordinateFlightStuckTicks++;
                     } else {
                         coordinateFlightStuckTicks = 0;
                     }
-                    coordinateFlightLastPosition = player.position();
+                    coordinateFlightLastPosition = currentPosition;
                     if (coordinateFlightStuckTicks > 40) {
                         stopCoordinateFlight();
                         player.setDeltaMovement(Vec3.ZERO);
                         message(client, "Coordinate Flight stopped: blocked or corrected by server");
                     } else if (spectatorCheckTick % 20 == 0) {
                         player.displayClientMessage(Component.literal("§bCoordinate Flight §f"
-                                + (int) remaining + " blocks remaining"), true);
+                                + flightPhase + " | " + (int) currentPosition.distanceTo(coordinateDestination)
+                                + " blocks to destination"), true);
                     }
                 }
             }
@@ -563,6 +597,8 @@ public final class PortalFlight implements ClientModInitializer {
         freecam = false;
         speed = false;
         coordinateDestination = new Vec3(x, y, z);
+        coordinateFlightCruiseY = Math.max(200.0, Math.max(mc.player.getY(), y));
+        coordinateFlightStage = mc.player.getY() < coordinateFlightCruiseY - 0.8 ? 0 : 1;
         coordinateFlightStuckTicks = 0;
         coordinateFlightLastPosition = null;
         return true;
@@ -571,6 +607,7 @@ public final class PortalFlight implements ClientModInitializer {
     public static void stopCoordinateFlight() {
         if (coordinateDestination == null) return;
         coordinateDestination = null;
+        coordinateFlightStage = 0;
         coordinateFlightStuckTicks = 0;
         coordinateFlightLastPosition = null;
         Minecraft mc = Minecraft.getInstance();
