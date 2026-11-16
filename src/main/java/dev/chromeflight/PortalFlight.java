@@ -43,6 +43,8 @@ public final class PortalFlight implements ClientModInitializer {
     private static final double NOCLIP_SPEED = 0.55;
     private static int storageTick;
     private static int spectatorCheckTick;
+    private static String spectatorWarning = "";
+    private static final double WATCH_RADIUS = 128.0;
     private static BlockPos nearestFrame;
     private static final double SPEED_FACTOR = 1.8;
     // Client-side comfort limits; they do not override the server's vehicle simulation.
@@ -147,7 +149,7 @@ public final class PortalFlight implements ClientModInitializer {
                 message(client, "Freecam " + (freecam ? "ON" : "OFF"));
             }
             if (player == null || client.level == null) {
-                spectatorNearby = false; noclip = false; return;
+                spectatorNearby = false; spectatorWarning = ""; noclip = false; return;
             }
             if (noclip) {
                 player.noPhysics = true;
@@ -182,26 +184,44 @@ public final class PortalFlight implements ClientModInitializer {
                 if (nearest != null)
                     player.displayClientMessage(Component.literal("§6Storage: " + nearest.getX() + ", " + nearest.getY() + ", " + nearest.getZ()), true);
             }
-            // Only spectator players whose entities the server sends can be detected.
-            // Hidden moderators or remote spectator cameras cannot be discovered client-side.
-            if (++spectatorCheckTick % 20 == 0) {
-                boolean found = false;
+            // Staff Watch: monitor only evidence that the client actually receives.
+            // Server-side vanish can fully hide staff, so no signal means UNKNOWN,
+            // never "no staff watching you". Do not confuse heuristics with proof.
+            if (++spectatorCheckTick % 10 == 0) {
+                String warning = "";
+                boolean visibleSpectator = false;
                 for (var other : client.level.players()) {
-                    if (other != player && other.isSpectator() && other.distanceToSqr(player) <= 48.0 * 48.0) {
-                        found = true;
+                    if (other == player || other.distanceToSqr(player) > WATCH_RADIUS * WATCH_RADIUS) continue;
+                    if (other.isSpectator()) {
+                        visibleSpectator = true;
+                        warning = "VISIBLE SPECTATOR NEARBY: " + other.getName().getString();
                         break;
                     }
-                }
-                if (found != spectatorNearby) {
-                    spectatorNearby = found;
-                    message(client, found ? "Spectator detected nearby (if visible to client)!" : "No nearby visible spectators detected");
-                }
-                if (found && privacyMode) {
-                    if (fly || speed || boatFly || freecam || noFall) {
-                        fly = false; speed = false; boatFly = false; freecam = false; noFall = false;
-                        message(client, "Privacy: movement modules and Safe Fall disabled");
+                    // Invisible players are not necessarily staff; potions and
+                    // gameplay effects also cause invisibility.
+                    if (warning.isEmpty() && other.isInvisible()) {
+                        warning = "INVISIBLE PLAYER NEARBY (identity unknown): " + other.getName().getString();
                     }
                 }
+                boolean nowWatching = !warning.isEmpty();
+                if (nowWatching && (!spectatorNearby || !warning.equals(spectatorWarning))) {
+                    message(client, "WARNING: " + warning);
+                }
+                spectatorNearby = nowWatching;
+                spectatorWarning = warning;
+                if (visibleSpectator && privacyMode) {
+                    if (fly || speed || boatFly || freecam || noFall || noclip || orbitCombat) {
+                        fly = false; speed = false; boatFly = false; freecam = false;
+                        noFall = false; orbitCombat = false;
+                        disableNoclip(client);
+                        resetBoatTracking();
+                        message(client, "Spectator Privacy: movement and combat modules disabled");
+                    }
+                }
+            }
+            // Keep the warning visible while the signal is still present.
+            if (privacyMode && spectatorNearby && !spectatorWarning.isEmpty()) {
+                player.displayClientMessage(Component.literal("§c§l[STAFF WATCH?] §e" + spectatorWarning), true);
             }
             if (noFall && !orbitCombat) {
                 // Local fall-distance reset and an explicit grounded-status packet during falls.
