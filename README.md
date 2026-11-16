@@ -6,7 +6,13 @@ Client-side Minecraft utility mod source project.
 
 These are original PortalFlight implementations inspired by common functionality in Anubis, Meteor and Krypton; no third-party client source code was copied. Entity ESP outlines only entities the server sends to your client. Storage Finder reports the nearest loaded chest/barrel coordinates, not through-wall block outlines. No auto-combat or anti-cheat bypass added.
 
+## ClickGUI
+
+Press **Right Ctrl** to open the dark PortalFlight menu. Click **Movement**, **Render**, **Combat**, or **Utility**, then click a module to turn it ON/OFF. Press **Esc** to close. The menu controls the same toggles as the keyboard shortcuts and includes all actual implemented modules; Boat Fly Descend (X) remains a hold-to-use key in Minecraft's Key Binds screen. The interface is original and uses no NiceWurst code or modules.
+
 ## Keybinds
+
+- **Right Ctrl** — Open the PortalFlight ClickGUI (rebindable under Miscellaneous)
 
 - **C** — Toggle experimental local Noclip: movement keys fly through client-side collision, Space up and Shift down. This is intended for singleplayer; a multiplayer server can reject the movement. Toggle off before leaving a wall to avoid becoming stuck. Minecraft's server may still perform collision checks.
 
