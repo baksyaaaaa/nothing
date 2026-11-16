@@ -441,7 +441,7 @@ public final class PortalFlight implements ClientModInitializer {
                     // Fast, smooth flight in three stages: up, horizontal, down.
                     // This is not teleportation; servers may reject/correct movement.
                     double travelSpeed = Math.min(coordinateFlightMaxSpeed,
-                            Math.max(0.12, remaining * 0.22));
+                            Math.max(0.001, remaining * 0.22));
                     player.setNoGravity(true);
                     player.setDeltaMovement(remaining > 0.001
                             ? delta.normalize().scale(travelSpeed) : Vec3.ZERO);
@@ -580,16 +580,18 @@ public final class PortalFlight implements ClientModInitializer {
         staffWatchEvents.addFirst(java.time.LocalTime.now().withNano(0) + " - " + value);
     }
 
+    /** Speed shown to players is in blocks per second (20 game ticks/second). */
     public static double getCoordinateFlightSpeed() {
-        return coordinateFlightMaxSpeed;
+        return coordinateFlightMaxSpeed * 20.0;
     }
 
-    /** Valid speed range is 0.1 to 64 blocks/tick (2 to 1280 blocks/second). */
-    public static boolean setCoordinateFlightSpeed(double blocksPerTick) {
-        if (!Double.isFinite(blocksPerTick) || blocksPerTick < 0.1 || blocksPerTick > 64.0) {
+    /** Accept any positive speed up to 1280 blocks/second. */
+    public static boolean setCoordinateFlightSpeed(double blocksPerSecond) {
+        if (!Double.isFinite(blocksPerSecond) || blocksPerSecond <= 0.0
+                || blocksPerSecond > 1280.0) {
             return false;
         }
-        coordinateFlightMaxSpeed = blocksPerTick;
+        coordinateFlightMaxSpeed = blocksPerSecond / 20.0;
         saveCoordinateFlightSpeed();
         return true;
     }
@@ -605,7 +607,7 @@ public final class PortalFlight implements ClientModInitializer {
             Properties properties = new Properties();
             properties.load(stream);
             double value = Double.parseDouble(properties.getProperty("coordinateFlightSpeed", "16.0"));
-            if (Double.isFinite(value) && value >= 0.1 && value <= 64.0) {
+            if (Double.isFinite(value) && value > 0.0 && value <= 64.0) {
                 coordinateFlightMaxSpeed = value;
             }
         } catch (Exception ignored) {
