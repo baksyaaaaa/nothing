@@ -15,5 +15,6 @@
   "key.portalflight.auto_sprint": "Toggle Auto Sprint",
   "key.portalflight.tracers": "Toggle ESP Tracers",
   "key.portalflight.orbit_combat": "Toggle Orbit Combat",
-  "key.portalflight.noclip": "Toggle Noclip"
+  "key.portalflight.noclip": "Toggle Noclip",
+  "key.portalflight.clickgui": "Open PortalFlight ClickGUI"
 }
