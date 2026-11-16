@@ -11,6 +11,7 @@ public final class CoordinateFlightScreen extends Screen {
     private EditBox xField;
     private EditBox yField;
     private EditBox zField;
+    private EditBox speedField;
     private String feedback = "";
     private int left;
     private int top;
@@ -22,7 +23,7 @@ public final class CoordinateFlightScreen extends Screen {
     @Override
     protected void init() {
         left = (this.width - 304) / 2;
-        top = Math.max(12, (this.height - 206) / 2);
+        top = Math.max(12, (this.height - 260) / 2);
         xField = coordinateField(left + 12, top + 50, "X");
         yField = coordinateField(left + 108, top + 50, "Y");
         zField = coordinateField(left + 204, top + 50, "Z");
@@ -32,15 +33,23 @@ public final class CoordinateFlightScreen extends Screen {
             yField.setValue(Integer.toString((int)Math.floor(pos.y)));
             zField.setValue(Integer.toString((int)Math.floor(pos.z)));
         }
+        speedField = new EditBox(this.font, left + 12, top + 104, 125, 20,
+                Component.literal("Flight speed in blocks/tick"));
+        speedField.setMaxLength(12);
+        speedField.setValue(String.format(java.util.Locale.ROOT, "%.2f",
+                PortalFlight.getCoordinateFlightSpeed()));
+        addRenderableWidget(speedField);
+        addRenderableWidget(Button.builder(Component.literal("Apply Speed"), button -> applySpeed())
+                .bounds(left + 145, top + 104, 147, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Fly to Coordinates"), button -> startFlight())
-                .bounds(left + 12, top + 86, 280, 22).build());
+                .bounds(left + 12, top + 135, 280, 22).build());
         addRenderableWidget(Button.builder(Component.literal("STOP Flight"), button -> {
             PortalFlight.stopCoordinateFlight();
             feedback = "Coordinate flight stopped.";
-        }).bounds(left + 12, top + 116, 280, 22).build());
+        }).bounds(left + 12, top + 164, 280, 22).build());
         addRenderableWidget(Button.builder(Component.literal("Back"), button -> {
             if (this.minecraft != null) this.minecraft.setScreen(new PortalFlightMenuScreen());
-        }).bounds(left + 12, top + 146, 280, 22).build());
+        }).bounds(left + 12, top + 193, 280, 22).build());
     }
 
     private EditBox coordinateField(int x, int y, String axis) {
@@ -48,6 +57,20 @@ public final class CoordinateFlightScreen extends Screen {
         field.setMaxLength(22);
         addRenderableWidget(field);
         return field;
+    }
+
+    private void applySpeed() {
+        try {
+            double value = Double.parseDouble(speedField.getValue().trim());
+            if (PortalFlight.setCoordinateFlightSpeed(value)) {
+                feedback = "Speed saved: " + String.format(java.util.Locale.ROOT, "%.2f", value)
+                        + " blocks/tick";
+            } else {
+                feedback = "Speed must be between 0.1 and 64 blocks/tick.";
+            }
+        } catch (NumberFormatException exception) {
+            feedback = "Enter a valid speed, e.g. 16 or 24.5.";
+        }
     }
 
     private void startFlight() {
@@ -68,15 +91,17 @@ public final class CoordinateFlightScreen extends Screen {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         graphics.fill(0, 0, this.width, this.height, 0xAA000000);
-        graphics.fill(left - 2, top - 2, left + 306, top + 208, 0xFF101622);
+        graphics.fill(left - 2, top - 2, left + 306, top + 262, 0xFF101622);
         graphics.fill(left, top, left + 304, top + 30, 0xFF202C41);
         graphics.drawString(this.font, "COORDINATE FLIGHT", left + 12, top + 11, 0xFF81D4FA);
         graphics.drawString(this.font, "X", left + 12, top + 37, 0xFFE0F0FF);
         graphics.drawString(this.font, "Y", left + 108, top + 37, 0xFFE0F0FF);
         graphics.drawString(this.font, "Z", left + 204, top + 37, 0xFFE0F0FF);
-        graphics.drawString(this.font, feedback, left + 12, top + 180, 0xFFFFCC88);
+        graphics.drawString(this.font, "Flight speed (blocks/tick, 0.1 - 64):",
+                left + 12, top + 91, 0xFFE0F0FF);
+        graphics.drawString(this.font, feedback, left + 12, top + 226, 0xFFFFCC88);
         graphics.drawString(this.font, "Destination: " + PortalFlight.getCoordinateFlightDestination(),
-                left + 12, top + 194, 0xFFA5BED4);
+                left + 12, top + 242, 0xFFA5BED4);
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
