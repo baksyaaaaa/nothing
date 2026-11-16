@@ -8,6 +8,8 @@ These are original PortalFlight implementations inspired by common functionality
 
 ## Keybinds
 
+- **C** — Toggle experimental local Noclip: movement keys fly through client-side collision, Space up and Shift down. This is intended for singleplayer; a multiplayer server can reject the movement. Toggle off before leaving a wall to avoid becoming stuck. Minecraft's server may still perform collision checks.
+
 - **F12** — Orbit Combat: aim at and circle the closest non-spectator player within 3.2 blocks, jump and attack on the cooldown during descent. Turn off with F12; this only attempts critical hits and never guarantees damage or kills. Avoid using in combination with Fly or Freecam.
 
 All PortalFlight module toggles and Boat Fly Descend are rebindable in **Options → Controls → Key Binds**, under **Miscellaneous**. Movement, jump, sneak and sprint use Minecraft's own rebindable controls.
