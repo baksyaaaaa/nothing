@@ -20,6 +20,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
+import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.InteractionHand;
@@ -57,6 +58,7 @@ public final class PortalFlight implements ClientModInitializer {
     private static final double ORBIT_RADIUS = 2.4;
     private static final double COMBAT_VERTICAL_SPEED = 0.27;
     private static final double NOCLIP_SPEED = 0.55;
+    private static int elytraPacketTicks;
     private static int storageTick;
     private static final List<BlockPos> nearbyStorage = new ArrayList<>();
     private static final int STORAGE_RADIUS = 24;
@@ -211,6 +213,7 @@ public final class PortalFlight implements ClientModInitializer {
                 spectatorNearby = false; spectatorWarning = ""; noclip = false;
                 staffWatchEvents.clear(); watchWorldKey = ""; lastObservedServerMessage = "";
                 coordinateDestination = null; coordinateFlightLastPosition = null; coordinateFlightStuckTicks = 0;
+                elytraPacketTicks = 0;
                 nearbyStorage.clear(); lastStorageScanOrigin = null; storageWorldKey = "";
                 return;
             }
@@ -525,11 +528,22 @@ public final class PortalFlight implements ClientModInitializer {
                 player.setOnGround(false);
                 player.fallDistance = 0;
             }
-            // Send an explicit on-ground status packet for manual and coordinate flight.
-            // The server remains authoritative and may ignore or reject this status.
-            if (!noclip && !freecam && (fly || coordinateDestination != null)
-                    && player.getVehicle() == null && client.getConnection() != null) {
-                client.getConnection().send(new ServerboundMovePlayerPacket.StatusOnly(true, false));
+            // Request Elytra fall-flying while manual Fly or Coordinate Flight is enabled.
+            // START_FALL_FLYING is a request, not proof of gliding; the server checks
+            // equipment and player state. Avoid conflicting onGround flight packets.
+            boolean flightRequested = !noclip && !freecam
+                    && (fly || coordinateDestination != null)
+                    && player.getVehicle() == null && client.getConnection() != null;
+            if (flightRequested) {
+                if (++elytraPacketTicks == 1 || elytraPacketTicks >= 20) {
+                    elytraPacketTicks = 1;
+                    if (!player.isFallFlying()) {
+                        client.getConnection().send(new ServerboundPlayerCommandPacket(
+                                player, ServerboundPlayerCommandPacket.Action.START_FALL_FLYING));
+                    }
+                }
+            } else {
+                elytraPacketTicks = 0;
             }
             if (!noclip && !freecam && speed && player.onGround() && player.input != null && player.input.hasForwardImpulse()) {
                 Vec3 v = player.getDeltaMovement();
