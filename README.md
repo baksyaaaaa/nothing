@@ -20,8 +20,8 @@ Press **Right Ctrl** to open the dark PortalFlight menu. Click **Movement**, **R
 
 All PortalFlight module toggles and Boat Fly Descend are rebindable in **Options → Controls → Key Binds**, under **Miscellaneous**. Movement, jump, sneak and sprint use Minecraft's own rebindable controls.
 
-- **F7** — Player ESP (client-side glowing outlines, optional tracer lines)
-- **F8** — Mob ESP (client-side glowing outlines, optional tracer lines)
+- **F7** — Player ESP (client-side cyan bounding boxes, optional tracer lines)
+- **F8** — Mob ESP (client-side orange bounding boxes, optional tracer lines)
 - **F11** — Toggle ESP Tracers (enabled by default; draws a line from your view to outlined players and mobs)
 - **F9** — Storage Finder (coordinates of nearby loaded chests/barrels)
 - **F10** — Auto Sprint
@@ -45,3 +45,7 @@ Every push to main invokes GitHub Actions **Build PortalFlight**. Get the built 
 ## Spectator detection limitations
 
 Spectator detection only works for nearby spectator player entities that the multiplayer server sends to your client (48-block radius). Servers can hide spectator entities, including staff; those viewers cannot be detected by client-only code. **This mod does not make your player invisible to spectators.** Player visibility is controlled by the server, so hiding your player from other clients requires permissions/server-side functionality.
+
+## ESP rendering notes
+
+Player ESP (F7) and Mob ESP (F8) render wireframe bounding boxes around entities already available to the Minecraft client. ESP Tracers (F11, enabled by default) draws an optional line toward each selected target. The rendering uses camera-relative coordinates and the Fabric 1.21.11 render-context matrix. This is not guaranteed through-wall visibility and does not reveal hidden or unloaded entities.
