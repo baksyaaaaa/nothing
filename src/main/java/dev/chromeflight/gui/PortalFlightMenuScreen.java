@@ -31,7 +31,12 @@ public final class PortalFlightMenuScreen extends Screen {
     private int panelWidth;
 
     public PortalFlightMenuScreen() {
+        this(0);
+    }
+
+    private PortalFlightMenuScreen(int selectedCategory) {
         super(Component.literal("PortalFlight ClickGUI"));
+        this.category = selectedCategory;
     }
 
     @Override
@@ -47,8 +52,7 @@ public final class PortalFlightMenuScreen extends Screen {
             int tabX = panelX + 10 + i * tabWidth;
             int width = (i == CATEGORIES.length - 1) ? inner - i * tabWidth : tabWidth - 2;
             addRenderableWidget(Button.builder(Component.literal(CATEGORIES[i]), btn -> {
-                category = choice;
-                clearAndInit();
+                if (this.minecraft != null) this.minecraft.setScreen(new PortalFlightMenuScreen(choice));
             }).bounds(tabX, panelY + 38, width, 20).build());
         }
 
