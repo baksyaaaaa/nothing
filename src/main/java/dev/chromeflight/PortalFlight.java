@@ -22,8 +22,8 @@ import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 
 public final class PortalFlight implements ClientModInitializer {
-    private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey, swimKey, boatDescendKey, playerEspKey, mobEspKey, storageFinderKey, autoSprintKey, tracerKey, orbitCombatKey;
-    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat;
+    private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey, swimKey, boatDescendKey, playerEspKey, mobEspKey, storageFinderKey, autoSprintKey, tracerKey, orbitCombatKey, noclipKey;
+    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat, noclip;
     public static boolean freecam;
     public static Vec3 freecamPosition = Vec3.ZERO;
     private static final double FREECAM_SPEED = 0.75;
@@ -35,6 +35,7 @@ public final class PortalFlight implements ClientModInitializer {
     private static int combatAttackTicks;
     private static final double COMBAT_RANGE = 3.2;
     private static final double ORBIT_SPEED = 0.22;
+    private static final double NOCLIP_SPEED = 0.55;
     private static int storageTick;
     private static final Set<UUID> glowingByMod = new HashSet<>();
     private static int spectatorCheckTick;
@@ -59,6 +60,7 @@ public final class PortalFlight implements ClientModInitializer {
         autoSprintKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.auto_sprint", GLFW.GLFW_KEY_F10, KeyMapping.Category.MISC));
         tracerKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.tracers", GLFW.GLFW_KEY_F11, KeyMapping.Category.MISC));
         orbitCombatKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.orbit_combat", GLFW.GLFW_KEY_F12, KeyMapping.Category.MISC));
+        noclipKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.noclip", GLFW.GLFW_KEY_C, KeyMapping.Category.MISC));
         // Tracers follow Player/Mob ESP only for entities the server actually sends.
         WorldRenderEvents.BEFORE_DEBUG_RENDER.register(context -> {
             if (!espTracers || (!playerEsp && !mobEsp)) return;
@@ -81,6 +83,15 @@ public final class PortalFlight implements ClientModInitializer {
             }
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            while (noclipKey.consumeClick()) {
+                noclip = !noclip;
+                if (noclip) { fly = false; orbitCombat = false; freecam = false; }
+                if (!noclip && client.player != null) {
+                    client.player.noPhysics = false;
+                    client.player.setNoGravity(false);
+                }
+                message(client, "Noclip " + (noclip ? "ON" : "OFF") + " (singleplayer/local only)");
+            }
             while (orbitCombatKey.consumeClick()) {
                 orbitCombat = !orbitCombat;
                 combatAttackTicks = 0;
@@ -105,8 +116,23 @@ public final class PortalFlight implements ClientModInitializer {
                 if (freecam && player != null) freecamPosition = player.getEyePosition();
                 message(client, "Freecam " + (freecam ? "ON" : "OFF"));
             }
-            if (player == null || client.level == null) { spectatorNearby = false; glowingByMod.clear(); return; }
-            if (autoSprint && !freecam && !player.isShiftKeyDown() && player.getVehicle() == null && client.options.keyUp.isDown()) {
+            if (player == null || client.level == null) {
+                spectatorNearby = false; glowingByMod.clear(); noclip = false; return;
+            }
+            if (noclip) {
+                player.noPhysics = true;
+                player.setNoGravity(true);
+                player.fallDistance = 0;
+                double yaw = Math.toRadians(player.getYRot());
+                Vec3 forwardVec = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
+                Vec3 rightVec = new Vec3(-forwardVec.z, 0, forwardVec.x);
+                double forward = (client.options.keyUp.isDown() ? 1 : 0) - (client.options.keyDown.isDown() ? 1 : 0);
+                double sideways = (client.options.keyRight.isDown() ? 1 : 0) - (client.options.keyLeft.isDown() ? 1 : 0);
+                double vertical = (client.options.keyJump.isDown() ? 1 : 0) - (client.options.keyShift.isDown() ? 1 : 0);
+                Vec3 direction = forwardVec.scale(forward).add(rightVec.scale(sideways)).add(0, vertical, 0);
+                player.setDeltaMovement(direction.lengthSqr() > 0 ? direction.normalize().scale(NOCLIP_SPEED) : Vec3.ZERO);
+            }
+            if (autoSprint && !noclip && !freecam && !player.isShiftKeyDown() && player.getVehicle() == null && client.options.keyUp.isDown()) {
                 player.setSprinting(true);
             }
             // Local glowing outlines for visible-to-client entities only. Restore our own changes.
@@ -177,7 +203,7 @@ public final class PortalFlight implements ClientModInitializer {
             }
             // Orbit Combat selects a nearby non-spectator player, circles them, aims and
             // attacks only when a cooldown is ready. It cannot force server-side criticals.
-            if (orbitCombat && !freecam && !fly && player.getVehicle() == null && client.gameMode != null && client.screen == null) {
+            if (orbitCombat && !noclip && !freecam && !fly && player.getVehicle() == null && client.gameMode != null && client.screen == null) {
                 Player target = null;
                 double best = COMBAT_RANGE * COMBAT_RANGE;
                 for (Player other : client.level.players()) {
@@ -242,7 +268,7 @@ public final class PortalFlight implements ClientModInitializer {
                 client.options.keyShift.setDown(false);
                 player.setDeltaMovement(Vec3.ZERO);
             }
-            if (!freecam && swimBoost && !fly && player.getVehicle() == null && player.isInWater()) {
+            if (!noclip && !freecam && swimBoost && !fly && player.getVehicle() == null && player.isInWater()) {
                 // Move in the direction of the player's look vector while swimming.
                 // Use Minecraft's rebound movement keys; avoid hardcoded WASD / Space / Shift.
                 double forwardInput = (client.options.keyUp.isDown() ? 1 : 0) - (client.options.keyDown.isDown() ? 1 : 0);
@@ -258,7 +284,7 @@ public final class PortalFlight implements ClientModInitializer {
                     player.setDeltaMovement(velocity);
                 }
             }
-            if (!freecam && fly && player.getVehicle() == null) {
+            if (!noclip && !freecam && fly && player.getVehicle() == null) {
                 double yaw = Math.toRadians(player.getYRot());
                 Vec3 forwardVec = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
                 Vec3 rightVec = new Vec3(-forwardVec.z, 0, forwardVec.x);
@@ -273,7 +299,7 @@ public final class PortalFlight implements ClientModInitializer {
                 player.setOnGround(false);
                 player.fallDistance = 0;
             }
-            if (!freecam && speed && player.onGround() && player.input != null && player.input.hasForwardImpulse()) {
+            if (!noclip && !freecam && speed && player.onGround() && player.input != null && player.input.hasForwardImpulse()) {
                 Vec3 v = player.getDeltaMovement();
                 player.setDeltaMovement(v.x * SPEED_FACTOR, v.y, v.z * SPEED_FACTOR);
             }
