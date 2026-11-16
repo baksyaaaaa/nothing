@@ -36,10 +36,10 @@ public final class PortalFlight implements ClientModInitializer {
     private static int combatAttackTicks;
     private static UUID combatTargetId;
     private static int combatOrbitDirection = 1;
-    private static final double COMBAT_RANGE = 3.2;
-    private static final double ORBIT_SPEED = 0.17;
+    private static final double COMBAT_RANGE = 8.0;
+    private static final double ORBIT_SPEED = 0.32;
     private static final double ORBIT_RADIUS = 2.4;
-    private static final float READY_TO_ATTACK = 0.98f;
+    private static final double COMBAT_VERTICAL_SPEED = 0.27;
     private static final double NOCLIP_SPEED = 0.55;
     private static int storageTick;
     private static final Set<UUID> glowingByMod = new HashSet<>();
@@ -105,6 +105,7 @@ public final class PortalFlight implements ClientModInitializer {
                 orbitCombat = !orbitCombat;
                 combatAttackTicks = 0;
                 combatTargetId = null;
+                if (!orbitCombat && client.player != null && !noclip) client.player.setNoGravity(false);
                 message(client, "Orbit Combat " + (orbitCombat ? "ON" : "OFF"));
             }
             while (tracerKey.consumeClick()) { espTracers = !espTracers; message(client, "ESP Tracers " + (espTracers ? "ON" : "OFF")); }
@@ -211,8 +212,8 @@ public final class PortalFlight implements ClientModInitializer {
                 }
                 player.fallDistance = 0;
             }
-            // Orbit Combat: stable target tracking, orbit movement, normal Minecraft
-            // cooldowns and descending hits. Server collision/critical rules still apply.
+            // Orbit Combat follows its target with a flying circle and attacks frequently.
+            // Server-side damage cooldowns and critical hit rules still apply.
             if (orbitCombat && !noclip && !freecam && !fly && player.getVehicle() == null
                     && client.gameMode != null && client.screen == null) {
                 Player target = null;
@@ -228,70 +229,64 @@ public final class PortalFlight implements ClientModInitializer {
                     }
                 }
                 if (target == null) {
-                    double closest = maxRangeSqr;
+                    double nearest = maxRangeSqr;
                     for (Player other : client.level.players()) {
                         if (other == player || !other.isAlive() || other.isSpectator()) continue;
                         double distance = player.distanceToSqr(other);
-                        if (distance < closest) {
-                            closest = distance;
-                            target = other;
-                        }
+                        if (distance < nearest) { nearest = distance; target = other; }
                     }
-                    UUID next = target == null ? null : target.getUUID();
-                    if (next != null && !next.equals(combatTargetId)) {
+                    UUID newId = target == null ? null : target.getUUID();
+                    if (newId != null && !newId.equals(combatTargetId)) {
                         combatOrbitDirection = -combatOrbitDirection;
                     }
-                    combatTargetId = next;
+                    combatTargetId = newId;
                 }
                 if (target != null) {
+                    combatAttackTicks++;
+                    // Aim at the opponent while following them in the air.
                     Vec3 aim = target.getEyePosition().subtract(player.getEyePosition());
-                    double flatDistance = Math.sqrt(aim.x * aim.x + aim.z * aim.z);
-                    if (flatDistance > 0.0001) {
-                        player.setYRot((float) Math.toDegrees(Math.atan2(-aim.x, aim.z)));
-                        player.setXRot((float) -Math.toDegrees(Math.atan2(aim.y, flatDistance)));
+                    double flatAim = Math.sqrt(aim.x * aim.x + aim.z * aim.z);
+                    if (flatAim > 0.0001) {
+                        player.setYRot((float)Math.toDegrees(Math.atan2(-aim.x, aim.z)));
+                        player.setXRot((float)-Math.toDegrees(Math.atan2(aim.y, flatAim)));
                     }
 
-                    Vec3 offset = target.position().subtract(player.position());
-                    double radius = Math.sqrt(offset.x * offset.x + offset.z * offset.z);
+                    Vec3 delta = target.position().subtract(player.position());
+                    double radius = Math.sqrt(delta.x * delta.x + delta.z * delta.z);
+                    Vec3 horizontal = Vec3.ZERO;
                     if (radius > 0.001) {
-                        Vec3 radial = new Vec3(offset.x / radius, 0.0, offset.z / radius);
-                        Vec3 tangent = new Vec3(-radial.z, 0.0, radial.x).scale(combatOrbitDirection);
-                        // Maintain melee range rather than charging inside the opponent.
-                        double correction = Math.max(-0.10, Math.min(0.10, (radius - ORBIT_RADIUS) * 0.16));
-                        Vec3 desired = tangent.scale(ORBIT_SPEED).add(radial.scale(correction));
-                        Vec3 existing = player.getDeltaMovement();
-                        Vec3 smoothed = new Vec3(existing.x * 0.35 + desired.x * 0.65,
-                                existing.y, existing.z * 0.35 + desired.z * 0.65);
-                        player.setDeltaMovement(smoothed);
+                        Vec3 inward = new Vec3(delta.x / radius, 0, delta.z / radius);
+                        Vec3 tangent = new Vec3(-inward.z, 0, inward.x).scale(combatOrbitDirection);
+                        // Move around a moving target; close large gaps without teleporting.
+                        double correction = Math.max(-0.22, Math.min(0.45, (radius - ORBIT_RADIUS) * 0.24));
+                        horizontal = tangent.scale(ORBIT_SPEED).add(inward.scale(correction));
                     }
+                    // A small descending cycle attempts legitimate falling critical hits.
+                    // This does not forge critical packets or override server damage rules.
+                    double cycle = Math.sin(combatAttackTicks * 0.35);
+                    double desiredHeight = target.getY() + 0.85 + cycle * 0.45;
+                    double vertical = Math.max(-COMBAT_VERTICAL_SPEED,
+                            Math.min(COMBAT_VERTICAL_SPEED, (desiredHeight - player.getY()) * 0.40));
+                    player.setNoGravity(true);
+                    player.setDeltaMovement(horizontal.x, vertical, horizontal.z);
+                    player.fallDistance = vertical < 0 ? Math.max(player.fallDistance, 0.15f) : 0;
 
-                    boolean inRange = player.distanceToSqr(target) <= 3.0 * 3.0;
-                    boolean canSee = player.hasLineOfSight(target);
-                    float charge = player.getAttackStrengthScale(0.5f);
-                    boolean ready = charge >= READY_TO_ATTACK;
-                    boolean canCritical = !player.isInWater() && !player.isInLava()
-                            && !player.onClimbable() && !player.isPassenger();
-                    if (ready && canCritical && player.onGround() && inRange && canSee) {
-                        player.jumpFromGround();
-                    }
-                    boolean descending = !player.onGround()
-                            && player.getDeltaMovement().y < -0.05
-                            && player.fallDistance > 0.0f;
-                    boolean criticalWindow = canCritical && descending;
-                    // On the ground in water/lava or other non-critical conditions,
-                    // fall back to an ordinary fully charged hit instead of doing nothing.
-                    boolean normalFallback = !canCritical && player.onGround();
-                    if (ready && inRange && canSee && (criticalWindow || normalFallback)) {
+                    boolean inReach = player.distanceToSqr(target) <= 3.0 * 3.0;
+                    if (inReach && player.hasLineOfSight(target)) {
+                        // No client-side weapon-charge wait: attempt one attack per game tick.
+                        // Servers may reduce damage for uncharged hits.
                         client.gameMode.attack(player, target);
                         player.swing(InteractionHand.MAIN_HAND);
-                        combatAttackTicks = 0;
-                    } else {
-                        combatAttackTicks++;
                     }
                 } else {
+                    // No nearby target: do not leave the player hovering indefinitely.
                     combatTargetId = null;
                     combatAttackTicks = 0;
+                    player.setNoGravity(false);
                 }
+            } else if (!noclip && player.isNoGravity()) {
+                // Restore gravity when Orbit Combat is turned off.
+                player.setNoGravity(false);
             }
             // Hunger Saver intentionally does not interfere with sprinting.
             if (freecam) {
