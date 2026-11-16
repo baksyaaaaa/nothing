@@ -60,6 +60,9 @@ public final class PortalFlightMenuScreen extends Screen {
             addRenderableWidget(Button.builder(Component.literal("Staff Watch - View alerts"), btn -> {
                 if (this.minecraft != null) this.minecraft.setScreen(new StaffWatchScreen());
             }).bounds(panelX + 10, panelY + 191, inner, 22).build());
+            addRenderableWidget(Button.builder(Component.literal("Coordinate Flight - Fly to XYZ"), btn -> {
+                if (this.minecraft != null) this.minecraft.setScreen(new CoordinateFlightScreen());
+            }).bounds(panelX + 10, panelY + 218, inner, 22).build());
         }
 
         String[] ids = MODULE_IDS[category];
