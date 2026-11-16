@@ -50,7 +50,7 @@ Minecraft clients generally cannot see other players' private commands. If a ser
 
 ## Coordinate Flight autopilot
 
-Open **Right Ctrl → Utility → Coordinate Flight - Fly to XYZ**. Enter destination coordinates and click **Fly to Coordinates**. PortalFlight follows three phases: (1) ascend to **Y=200** (or stay higher if already above it or the destination is higher), (2) fly horizontally toward the target X/Z at up to 3.5 blocks/tick of client-predicted movement, then (3) descend or ascend to the target Y. The mode slows near waypoints and stops on arrival or after persistent lack of movement. **STOP Flight** cancels it.
+Open **Right Ctrl → Utility → Coordinate Flight - Fly to XYZ**. Enter destination coordinates and click **Fly to Coordinates**. PortalFlight follows three phases: (1) ascend to **Y=200** (or stay higher if already above it or the destination is higher), (2) fly horizontally toward the target X/Z at up to 8 blocks/tick of client-predicted movement, then (3) descend or ascend to the target Y. The mode slows near waypoints and stops on arrival or after persistent lack of movement. **STOP Flight** cancels it.
 
 This does not teleport, bypass server movement rules, or guarantee a clear path. It can collide with obstacles and multiplayer servers may rubber-band, block or reject the movement. Canceling at a high altitude can result in a fall.
 
