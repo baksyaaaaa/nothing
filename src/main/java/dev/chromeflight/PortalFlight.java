@@ -38,7 +38,7 @@ public final class PortalFlight implements ClientModInitializer {
     private static Vec3 coordinateFlightLastPosition;
     private static int coordinateFlightStage;
     private static double coordinateFlightCruiseY;
-    private static final double COORDINATE_FLIGHT_MAX_SPEED = 3.5;
+    private static final double COORDINATE_FLIGHT_MAX_SPEED = 8.0;
     private static final double COORDINATE_FLIGHT_ARRIVAL_RADIUS = 0.8;
     private static final double FREECAM_SPEED = 0.75;
     private static final double FLY_SPEED = 0.40;
