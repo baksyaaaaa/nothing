@@ -208,7 +208,7 @@ public final class PortalFlight implements ClientModInitializer {
                     player.displayClientMessage(Component.literal("§6Storage: " + nearest.getX() + ", " + nearest.getY() + ", " + nearest.getZ()), true);
             }
             // Old evidence must not be carried across dimension/world transitions.
-            String activeWorld = client.level.dimension().location().toString();
+            String activeWorld = client.level.dimension().toString();
             if (!activeWorld.equals(watchWorldKey)) {
                 watchWorldKey = activeWorld;
                 staffWatchEvents.clear();
