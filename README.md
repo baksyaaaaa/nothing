@@ -4,7 +4,7 @@ Client-side Minecraft utility mod source project.
 
 ## New ESP and utility modules
 
-These are original PortalFlight implementations inspired by common functionality in Anubis, Meteor and Krypton; no third-party client source code was copied. Entity ESP outlines only entities the server sends to your client. Storage Finder reports the nearest loaded chest/barrel coordinates, not through-wall block outlines. No auto-combat or anti-cheat bypass added.
+These are original PortalFlight implementations inspired by common functionality in Anubis, Meteor and Krypton; no third-party client source code was copied. Entity ESP outlines only entities the server sends to your client. Storage ESP draws wireframe boxes around nearby client-loaded chests, trapped chests, barrels and Ender Chests (24-block horizontal / 12-block vertical scan); it is not guaranteed to render through walls with the current line render pass. No auto-combat or anti-cheat bypass added.
 
 ## ClickGUI
 
