@@ -16,7 +16,7 @@ Press **Right Ctrl** to open the dark PortalFlight menu. Click **Movement**, **R
 
 - **C** — Toggle experimental local Noclip: movement keys fly through client-side collision, Space up and Shift down. This is intended for singleplayer; a multiplayer server can reject the movement. Toggle off before leaving a wall to avoid becoming stuck. Minecraft's server may still perform collision checks.
 
-- **F12** — Orbit Combat: locks onto a nearby non-spectator player within 3.2 blocks, smoothly circles at roughly 2.4 blocks, aims at the target, jumps for descending critical opportunities and attacks only at full cooldown within 3.0 blocks and line of sight. Normal attacks are used when airborne critical conditions are unavailable due to water, lava or climbing. Toggle off with F12; the server decides which hits count. Avoid using in combination with Fly or Freecam.
+- **F12** — Orbit Combat: follows nearby non-spectator players up to 8 blocks away while flying in an orbit, auto-aims, and attempts frequent melee attacks within 3 blocks and line of sight. A vertical orbit cycle may create falling-hit opportunities. Attacks are no longer gated by the client's weapon cooldown, but servers still apply normal damage/critical rules. Toggle off with F12. Avoid using in combination with Fly or Freecam.
 
 All PortalFlight module toggles and Boat Fly Descend are rebindable in **Options → Controls → Key Binds**, under **Miscellaneous**. Movement, jump, sneak and sprint use Minecraft's own rebindable controls.
 
