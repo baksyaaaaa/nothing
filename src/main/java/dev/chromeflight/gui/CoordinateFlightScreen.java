@@ -34,7 +34,7 @@ public final class CoordinateFlightScreen extends Screen {
             zField.setValue(Integer.toString((int)Math.floor(pos.z)));
         }
         speedField = new EditBox(this.font, left + 12, top + 104, 125, 20,
-                Component.literal("Flight speed in blocks/tick"));
+                Component.literal("Flight speed in blocks/second"));
         speedField.setMaxLength(12);
         speedField.setValue(String.format(java.util.Locale.ROOT, "%.2f",
                 PortalFlight.getCoordinateFlightSpeed()));
@@ -64,12 +64,12 @@ public final class CoordinateFlightScreen extends Screen {
             double value = Double.parseDouble(speedField.getValue().trim());
             if (PortalFlight.setCoordinateFlightSpeed(value)) {
                 feedback = "Speed saved: " + String.format(java.util.Locale.ROOT, "%.2f", value)
-                        + " blocks/tick";
+                        + " blocks/second";
             } else {
-                feedback = "Speed must be between 0.1 and 64 blocks/tick.";
+                feedback = "Enter a speed above 0, up to 1280 blocks/sec.";
             }
         } catch (NumberFormatException exception) {
-            feedback = "Enter a valid speed, e.g. 16 or 24.5.";
+            feedback = "Enter a speed like 320, 800, or 1280.";
         }
     }
 
@@ -97,7 +97,7 @@ public final class CoordinateFlightScreen extends Screen {
         graphics.drawString(this.font, "X", left + 12, top + 37, 0xFFE0F0FF);
         graphics.drawString(this.font, "Y", left + 108, top + 37, 0xFFE0F0FF);
         graphics.drawString(this.font, "Z", left + 204, top + 37, 0xFFE0F0FF);
-        graphics.drawString(this.font, "Flight speed (blocks/tick, 0.1 - 64):",
+        graphics.drawString(this.font, "Custom speed (blocks/sec, max 1280):",
                 left + 12, top + 91, 0xFFE0F0FF);
         graphics.drawString(this.font, feedback, left + 12, top + 226, 0xFFFFCC88);
         graphics.drawString(this.font, "Destination: " + PortalFlight.getCoordinateFlightDestination(),
