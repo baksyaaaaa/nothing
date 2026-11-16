@@ -33,6 +33,11 @@ public final class PortalFlight implements ClientModInitializer {
     private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat, noclip;
     public static boolean freecam;
     public static Vec3 freecamPosition = Vec3.ZERO;
+    private static Vec3 coordinateDestination;
+    private static int coordinateFlightStuckTicks;
+    private static Vec3 coordinateFlightLastPosition;
+    private static final double COORDINATE_FLIGHT_MAX_SPEED = 3.5;
+    private static final double COORDINATE_FLIGHT_ARRIVAL_RADIUS = 0.8;
     private static final double FREECAM_SPEED = 0.75;
     private static final double FLY_SPEED = 0.40;
     private static final double SPRINT_FLY_SPEED = 1.20;
@@ -172,6 +177,7 @@ public final class PortalFlight implements ClientModInitializer {
             if (player == null || client.level == null) {
                 spectatorNearby = false; spectatorWarning = ""; noclip = false;
                 staffWatchEvents.clear(); watchWorldKey = ""; lastObservedServerMessage = "";
+                coordinateDestination = null; coordinateFlightLastPosition = null; coordinateFlightStuckTicks = 0;
                 return;
             }
             if (noclip) {
@@ -215,6 +221,7 @@ public final class PortalFlight implements ClientModInitializer {
                 lastObservedServerMessage = "";
                 spectatorWarning = "";
                 spectatorNearby = false;
+                stopCoordinateFlight();
             }
             // Staff Watch: monitor only evidence that the client actually receives.
             // Server-side vanish can fully hide staff, so no signal means UNKNOWN,
@@ -245,8 +252,9 @@ public final class PortalFlight implements ClientModInitializer {
                 spectatorNearby = nowWatching;
                 spectatorWarning = warning;
                 if (visibleSpectator && privacyMode) {
-                    if (fly || speed || boatFly || freecam || noFall || noclip || orbitCombat) {
+                    if (fly || speed || boatFly || freecam || noFall || noclip || orbitCombat || coordinateDestination != null) {
                         fly = false; speed = false; boatFly = false; freecam = false;
+                        stopCoordinateFlight();
                         noFall = false; orbitCombat = false;
                         disableNoclip(client);
                         resetBoatTracking();
@@ -339,7 +347,7 @@ public final class PortalFlight implements ClientModInitializer {
                     combatAttackTicks = 0;
                     player.setNoGravity(false);
                 }
-            } else if (!noclip && player.isNoGravity()) {
+            } else if (!noclip && coordinateDestination == null && player.isNoGravity()) {
                 // Restore gravity when Orbit Combat is turned off.
                 player.setNoGravity(false);
             }
@@ -382,7 +390,43 @@ public final class PortalFlight implements ClientModInitializer {
                     player.setDeltaMovement(velocity);
                 }
             }
-            if (!noclip && !freecam && fly && player.getVehicle() == null) {
+            if (coordinateDestination != null) {
+                Vec3 delta = coordinateDestination.subtract(player.position());
+                double remaining = delta.length();
+                if (remaining <= COORDINATE_FLIGHT_ARRIVAL_RADIUS) {
+                    stopCoordinateFlight();
+                    player.setDeltaMovement(Vec3.ZERO);
+                    message(client, "Coordinate Flight: arrived");
+                } else if (player.getVehicle() != null) {
+                    stopCoordinateFlight();
+                    message(client, "Coordinate Flight stopped: dismounted required");
+                } else {
+                    // Flight is client-predicted movement, subject to server physics.
+                    // Slow down automatically at the target instead of overshooting.
+                    double travelSpeed = Math.min(COORDINATE_FLIGHT_MAX_SPEED,
+                            Math.max(0.12, remaining * 0.22));
+                    player.setNoGravity(true);
+                    player.setDeltaMovement(delta.normalize().scale(travelSpeed));
+                    player.setOnGround(false);
+                    player.fallDistance = 0;
+                    if (coordinateFlightLastPosition != null
+                            && player.position().distanceToSqr(coordinateFlightLastPosition) < 0.0004) {
+                        coordinateFlightStuckTicks++;
+                    } else {
+                        coordinateFlightStuckTicks = 0;
+                    }
+                    coordinateFlightLastPosition = player.position();
+                    if (coordinateFlightStuckTicks > 40) {
+                        stopCoordinateFlight();
+                        player.setDeltaMovement(Vec3.ZERO);
+                        message(client, "Coordinate Flight stopped: blocked or corrected by server");
+                    } else if (spectatorCheckTick % 20 == 0) {
+                        player.displayClientMessage(Component.literal("§bCoordinate Flight §f"
+                                + (int) remaining + " blocks remaining"), true);
+                    }
+                }
+            }
+            if (!noclip && !freecam && fly && coordinateDestination == null && player.getVehicle() == null) {
                 double yaw = Math.toRadians(player.getYRot());
                 Vec3 forwardVec = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
                 Vec3 rightVec = new Vec3(-forwardVec.z, 0, forwardVec.x);
@@ -495,6 +539,42 @@ public final class PortalFlight implements ClientModInitializer {
     private static void addStaffWatchEvent(String value) {
         if (staffWatchEvents.size() >= 12) staffWatchEvents.removeLast();
         staffWatchEvents.addFirst(java.time.LocalTime.now().withNano(0) + " - " + value);
+    }
+
+    public static boolean isCoordinateFlightActive() {
+        return coordinateDestination != null;
+    }
+
+    public static String getCoordinateFlightDestination() {
+        if (coordinateDestination == null) return "None";
+        return String.format(java.util.Locale.ROOT, "%.1f, %.1f, %.1f",
+                coordinateDestination.x, coordinateDestination.y, coordinateDestination.z);
+    }
+
+    public static boolean startCoordinateFlight(double x, double y, double z) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.level == null || mc.player.getVehicle() != null
+                || !Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)
+                || Math.abs(x) > 29999984 || Math.abs(z) > 29999984 || y < -2048 || y > 2048) return false;
+        disableNoclip(mc);
+        fly = false;
+        boatFly = false;
+        orbitCombat = false;
+        freecam = false;
+        speed = false;
+        coordinateDestination = new Vec3(x, y, z);
+        coordinateFlightStuckTicks = 0;
+        coordinateFlightLastPosition = null;
+        return true;
+    }
+
+    public static void stopCoordinateFlight() {
+        if (coordinateDestination == null) return;
+        coordinateDestination = null;
+        coordinateFlightStuckTicks = 0;
+        coordinateFlightLastPosition = null;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player != null && !noclip && !orbitCombat) mc.player.setNoGravity(false);
     }
 
     // The ClickGUI uses the same state as the keybinds; there is no separate copy of each toggle.
