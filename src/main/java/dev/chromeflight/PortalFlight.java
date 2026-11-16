@@ -5,6 +5,9 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import org.joml.Matrix4f;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.client.KeyMapping;
 import dev.chromeflight.gui.PortalFlightMenuScreen;
 import net.minecraft.client.Minecraft;
@@ -16,8 +19,6 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.UUID;
 import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
@@ -32,7 +33,6 @@ public final class PortalFlight implements ClientModInitializer {
     private static final double SPRINT_FLY_SPEED = 1.20;
     private static final double SWIM_BOOST_SPEED = 1.65;
     private static int scanTick;
-    private static int espTick;
     private static int combatAttackTicks;
     private static UUID combatTargetId;
     private static int combatOrbitDirection = 1;
@@ -42,7 +42,6 @@ public final class PortalFlight implements ClientModInitializer {
     private static final double COMBAT_VERTICAL_SPEED = 0.27;
     private static final double NOCLIP_SPEED = 0.55;
     private static int storageTick;
-    private static final Set<UUID> glowingByMod = new HashSet<>();
     private static int spectatorCheckTick;
     private static BlockPos nearestFrame;
     private static final double SPEED_FACTOR = 1.8;
@@ -67,25 +66,33 @@ public final class PortalFlight implements ClientModInitializer {
         orbitCombatKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.orbit_combat", GLFW.GLFW_KEY_F12, KeyMapping.Category.MISC));
         noclipKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.noclip", GLFW.GLFW_KEY_C, KeyMapping.Category.MISC));
         clickGuiKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.clickgui", GLFW.GLFW_KEY_RIGHT_CONTROL, KeyMapping.Category.MISC));
-        // Tracers follow Player/Mob ESP only for entities the server actually sends.
+        // Render outlines and optional tracers for entities the client already knows about.
+        // WorldRenderContext matrices must be used when submitting vertices in 1.21.11.
         WorldRenderEvents.BEFORE_DEBUG_RENDER.register(context -> {
-            if (!espTracers || (!playerEsp && !mobEsp)) return;
+            if (!playerEsp && !mobEsp) return;
             Minecraft mc = Minecraft.getInstance();
-            if (mc.level == null || mc.player == null || context.consumers() == null) return;
+            if (mc.level == null || mc.player == null || context.consumers() == null || context.matrices() == null) return;
             Vec3 camera = mc.gameRenderer.getMainCamera().position();
-            var lines = context.consumers().getBuffer(RenderTypes.lines());
+            Matrix4f pose = context.matrices().last().pose();
+            VertexConsumer lines = context.consumers().getBuffer(RenderTypes.lines());
+            Vec3 tracerStart = camera.add(mc.player.getLookAngle().scale(0.65));
             for (var entity : mc.level.entitiesForRendering()) {
-                if (entity == mc.player || !(entity instanceof LivingEntity)) continue;
-                boolean selected = entity instanceof Player ? playerEsp : mobEsp;
-                if (!selected || entity.distanceToSqr(mc.player) >= 96.0 * 96.0) continue;
-                Vec3 end = entity.position().add(0, entity.getBbHeight() * 0.5, 0).subtract(camera);
-                // Start at the camera, end at the entity outline. Player = cyan, mob = orange.
+                if (entity == mc.player || !(entity instanceof LivingEntity) || !entity.isAlive()) continue;
                 boolean isPlayer = entity instanceof Player;
+                if (!(isPlayer ? playerEsp : mobEsp)) continue;
+                if (entity.distanceToSqr(mc.player) > 96.0 * 96.0) continue;
                 int red = isPlayer ? 50 : 255;
                 int green = isPlayer ? 225 : 170;
                 int blue = isPlayer ? 255 : 50;
-                lines.addVertex(0.0f, 0.0f, 0.0f).setColor(red, green, blue, 255).setNormal(0, 1, 0).setLineWidth(2.0f);
-                lines.addVertex((float) end.x, (float) end.y, (float) end.z).setColor(red, green, blue, 255).setNormal(0, 1, 0).setLineWidth(2.0f);
+                // Bounding box is world-space; translate to camera-relative space.
+                AABB bounds = entity.getBoundingBox().inflate(0.04).move(-camera.x, -camera.y, -camera.z);
+                drawEspBox(lines, pose, bounds, red, green, blue);
+                if (espTracers) {
+                    Vec3 target = entity.getBoundingBox().getCenter().subtract(camera);
+                    Vec3 from = tracerStart.subtract(camera);
+                    drawEspLine(lines, pose, from.x, from.y, from.z,
+                            target.x, target.y, target.z, red, green, blue);
+                }
             }
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
@@ -128,7 +135,7 @@ public final class PortalFlight implements ClientModInitializer {
                 message(client, "Freecam " + (freecam ? "ON" : "OFF"));
             }
             if (player == null || client.level == null) {
-                spectatorNearby = false; glowingByMod.clear(); noclip = false; return;
+                spectatorNearby = false; noclip = false; return;
             }
             if (noclip) {
                 player.noPhysics = true;
@@ -145,25 +152,6 @@ public final class PortalFlight implements ClientModInitializer {
             }
             if (autoSprint && !noclip && !freecam && !player.isShiftKeyDown() && player.getVehicle() == null && client.options.keyUp.isDown()) {
                 player.setSprinting(true);
-            }
-            // Local glowing outlines for visible-to-client entities only. Restore our own changes.
-            if (++espTick % 5 == 0) {
-                Set<UUID> stillGlowing = new HashSet<>();
-                for (var entity : client.level.entitiesForRendering()) {
-                    if (entity == player || !(entity instanceof LivingEntity)) continue;
-                    boolean selected = entity instanceof Player ? playerEsp : mobEsp;
-                    UUID id = entity.getUUID();
-                    if (selected && entity.distanceToSqr(player) < 96.0 * 96.0) {
-                        if (!entity.hasGlowingTag()) {
-                            entity.setGlowingTag(true);
-                            glowingByMod.add(id);
-                        }
-                        if (glowingByMod.contains(id)) stillGlowing.add(id);
-                    } else if (glowingByMod.contains(id)) {
-                        entity.setGlowingTag(false);
-                    }
-                }
-                glowingByMod.retainAll(stillGlowing);
             }
             // Coordinate-based storage finder for blocks in already-loaded chunks.
             // This is not through-wall block ESP.
@@ -369,6 +357,32 @@ public final class PortalFlight implements ClientModInitializer {
             }
         });
     }
+    private static void drawEspLine(VertexConsumer lines, Matrix4f pose,
+            double x1, double y1, double z1, double x2, double y2, double z2,
+            int red, int green, int blue) {
+        lines.addVertex(pose, (float)x1, (float)y1, (float)z1)
+                .setColor(red, green, blue, 255).setNormal(0, 1, 0).setLineWidth(2.0f);
+        lines.addVertex(pose, (float)x2, (float)y2, (float)z2)
+                .setColor(red, green, blue, 255).setNormal(0, 1, 0).setLineWidth(2.0f);
+    }
+
+    private static void drawEspBox(VertexConsumer lines, Matrix4f pose,
+            AABB b, int red, int green, int blue) {
+        double a = b.minX, c = b.maxX, d = b.minY, e = b.maxY, f = b.minZ, g = b.maxZ;
+        drawEspLine(lines, pose, a,d,f, c,d,f, red,green,blue);
+        drawEspLine(lines, pose, c,d,f, c,d,g, red,green,blue);
+        drawEspLine(lines, pose, c,d,g, a,d,g, red,green,blue);
+        drawEspLine(lines, pose, a,d,g, a,d,f, red,green,blue);
+        drawEspLine(lines, pose, a,e,f, c,e,f, red,green,blue);
+        drawEspLine(lines, pose, c,e,f, c,e,g, red,green,blue);
+        drawEspLine(lines, pose, c,e,g, a,e,g, red,green,blue);
+        drawEspLine(lines, pose, a,e,g, a,e,f, red,green,blue);
+        drawEspLine(lines, pose, a,d,f, a,e,f, red,green,blue);
+        drawEspLine(lines, pose, c,d,f, c,e,f, red,green,blue);
+        drawEspLine(lines, pose, c,d,g, c,e,g, red,green,blue);
+        drawEspLine(lines, pose, a,d,g, a,e,g, red,green,blue);
+    }
+
     // The ClickGUI uses the same state as the keybinds; there is no separate copy of each toggle.
     public static boolean isModuleEnabled(String id) {
         return switch (id) {
