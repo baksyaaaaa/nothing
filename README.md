@@ -48,6 +48,12 @@ Open **Right Ctrl → Utility → Staff Watch - View alerts** to review current-
 
 Minecraft clients generally cannot see other players' private commands. If a server doesn't broadcast the use of `/vanish` or expose some observable change, PortalFlight cannot know that the command was executed. It never labels a hidden moderator as confirmed solely from this hint.
 
+## Coordinate Flight autopilot
+
+Open **Right Ctrl → Utility → Coordinate Flight - Fly to XYZ**. Enter destination coordinates and click **Fly to Coordinates**. PortalFlight follows three phases: (1) ascend to **Y=200** (or stay higher if already above it or the destination is higher), (2) fly horizontally toward the target X/Z at up to 3.5 blocks/tick of client-predicted movement, then (3) descend or ascend to the target Y. The mode slows near waypoints and stops on arrival or after persistent lack of movement. **STOP Flight** cancels it.
+
+This does not teleport, bypass server movement rules, or guarantee a clear path. It can collide with obstacles and multiplayer servers may rubber-band, block or reject the movement. Canceling at a high altitude can result in a fall.
+
 ## Spectator detection limitations
 
 Staff Watch now reports client-visible spectators and invisible players (which may simply be using an invisibility effect). It **cannot** see staff fully hidden by server-side vanish, distinguish ordinary invisible players from moderators, or know whether anyone is watching through a hidden camera. Absence of warnings is **not** evidence that no staff are watching. Alerts depend on the server sending the player entity to your client. Staff Watch is not an anti-ban guarantee.
