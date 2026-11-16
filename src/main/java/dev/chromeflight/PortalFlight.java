@@ -486,6 +486,12 @@ public final class PortalFlight implements ClientModInitializer {
                 player.setOnGround(false);
                 player.fallDistance = 0;
             }
+            // Send an explicit on-ground status packet for manual and coordinate flight.
+            // The server remains authoritative and may ignore or reject this status.
+            if (!noclip && !freecam && (fly || coordinateDestination != null)
+                    && player.getVehicle() == null && client.getConnection() != null) {
+                client.getConnection().send(new ServerboundMovePlayerPacket.StatusOnly(true, false));
+            }
             if (!noclip && !freecam && speed && player.onGround() && player.input != null && player.input.hasForwardImpulse()) {
                 Vec3 v = player.getDeltaMovement();
                 player.setDeltaMovement(v.x * SPEED_FACTOR, v.y, v.z * SPEED_FACTOR);
