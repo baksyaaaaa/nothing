@@ -1,6 +1,10 @@
 package dev.chromeflight;
 
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.loader.api.FabricLoader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Properties;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
@@ -38,7 +42,7 @@ public final class PortalFlight implements ClientModInitializer {
     private static Vec3 coordinateFlightLastPosition;
     private static int coordinateFlightStage;
     private static double coordinateFlightCruiseY;
-    private static final double COORDINATE_FLIGHT_MAX_SPEED = 16.0;
+    private static double coordinateFlightMaxSpeed = 16.0;
     private static final double COORDINATE_FLIGHT_ARRIVAL_RADIUS = 0.8;
     private static final double FREECAM_SPEED = 0.75;
     private static final double FLY_SPEED = 0.40;
@@ -72,6 +76,7 @@ public final class PortalFlight implements ClientModInitializer {
     private static Vec3 expectedBoatMovement = Vec3.ZERO;
 
     @Override public void onInitializeClient() {
+        loadCoordinateFlightSpeed();
         // KeyMapping.Category constructor details vary by mappings; use the vanilla miscellaneous category.
         speedKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.speed", GLFW.GLFW_KEY_V, KeyMapping.Category.MISC));
         boatKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.boat", GLFW.GLFW_KEY_B, KeyMapping.Category.MISC));
@@ -435,7 +440,7 @@ public final class PortalFlight implements ClientModInitializer {
                 } else {
                     // Fast, smooth flight in three stages: up, horizontal, down.
                     // This is not teleportation; servers may reject/correct movement.
-                    double travelSpeed = Math.min(COORDINATE_FLIGHT_MAX_SPEED,
+                    double travelSpeed = Math.min(coordinateFlightMaxSpeed,
                             Math.max(0.12, remaining * 0.22));
                     player.setNoGravity(true);
                     player.setDeltaMovement(remaining > 0.001
@@ -573,6 +578,53 @@ public final class PortalFlight implements ClientModInitializer {
     private static void addStaffWatchEvent(String value) {
         if (staffWatchEvents.size() >= 12) staffWatchEvents.removeLast();
         staffWatchEvents.addFirst(java.time.LocalTime.now().withNano(0) + " - " + value);
+    }
+
+    public static double getCoordinateFlightSpeed() {
+        return coordinateFlightMaxSpeed;
+    }
+
+    /** Valid speed range is 0.1 to 64 blocks/tick (2 to 1280 blocks/second). */
+    public static boolean setCoordinateFlightSpeed(double blocksPerTick) {
+        if (!Double.isFinite(blocksPerTick) || blocksPerTick < 0.1 || blocksPerTick > 64.0) {
+            return false;
+        }
+        coordinateFlightMaxSpeed = blocksPerTick;
+        saveCoordinateFlightSpeed();
+        return true;
+    }
+
+    private static Path coordinateFlightConfigPath() {
+        return FabricLoader.getInstance().getConfigDir().resolve("portalflight.properties");
+    }
+
+    private static void loadCoordinateFlightSpeed() {
+        Path path = coordinateFlightConfigPath();
+        if (!Files.exists(path)) return;
+        try (var stream = Files.newInputStream(path)) {
+            Properties properties = new Properties();
+            properties.load(stream);
+            double value = Double.parseDouble(properties.getProperty("coordinateFlightSpeed", "16.0"));
+            if (Double.isFinite(value) && value >= 0.1 && value <= 64.0) {
+                coordinateFlightMaxSpeed = value;
+            }
+        } catch (Exception ignored) {
+            // Invalid or missing configuration: use the default value.
+        }
+    }
+
+    private static void saveCoordinateFlightSpeed() {
+        try {
+            Path path = coordinateFlightConfigPath();
+            Files.createDirectories(path.getParent());
+            Properties properties = new Properties();
+            properties.setProperty("coordinateFlightSpeed", Double.toString(coordinateFlightMaxSpeed));
+            try (var stream = Files.newOutputStream(path)) {
+                properties.store(stream, "PortalFlight client settings");
+            }
+        } catch (Exception ignored) {
+            // The selected speed remains active for the current session.
+        }
     }
 
     public static boolean isCoordinateFlightActive() {
