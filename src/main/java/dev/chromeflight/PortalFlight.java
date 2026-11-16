@@ -6,6 +6,7 @@ import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.KeyMapping;
+import dev.chromeflight.gui.PortalFlightMenuScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
@@ -22,7 +23,7 @@ import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 
 public final class PortalFlight implements ClientModInitializer {
-    private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey, swimKey, boatDescendKey, playerEspKey, mobEspKey, storageFinderKey, autoSprintKey, tracerKey, orbitCombatKey, noclipKey;
+    private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey, swimKey, boatDescendKey, playerEspKey, mobEspKey, storageFinderKey, autoSprintKey, tracerKey, orbitCombatKey, noclipKey, clickGuiKey;
     private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat, noclip;
     public static boolean freecam;
     public static Vec3 freecamPosition = Vec3.ZERO;
@@ -61,6 +62,7 @@ public final class PortalFlight implements ClientModInitializer {
         tracerKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.tracers", GLFW.GLFW_KEY_F11, KeyMapping.Category.MISC));
         orbitCombatKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.orbit_combat", GLFW.GLFW_KEY_F12, KeyMapping.Category.MISC));
         noclipKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.noclip", GLFW.GLFW_KEY_C, KeyMapping.Category.MISC));
+        clickGuiKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.clickgui", GLFW.GLFW_KEY_RIGHT_CONTROL, KeyMapping.Category.MISC));
         // Tracers follow Player/Mob ESP only for entities the server actually sends.
         WorldRenderEvents.BEFORE_DEBUG_RENDER.register(context -> {
             if (!espTracers || (!playerEsp && !mobEsp)) return;
@@ -83,6 +85,9 @@ public final class PortalFlight implements ClientModInitializer {
             }
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            while (clickGuiKey.consumeClick()) {
+                if (client.screen == null) client.setScreen(new PortalFlightMenuScreen());
+            }
             while (noclipKey.consumeClick()) {
                 noclip = !noclip;
                 if (noclip) { fly = false; orbitCombat = false; freecam = false; }
@@ -326,6 +331,73 @@ public final class PortalFlight implements ClientModInitializer {
             }
         });
     }
+    // The ClickGUI uses the same state as the keybinds; there is no separate copy of each toggle.
+    public static boolean isModuleEnabled(String id) {
+        return switch (id) {
+            case "fly" -> fly;
+            case "speed" -> speed;
+            case "boat" -> boatFly;
+            case "swim" -> swimBoost;
+            case "noclip" -> noclip;
+            case "sprint" -> autoSprint;
+            case "freecam" -> freecam;
+            case "players" -> playerEsp;
+            case "mobs" -> mobEsp;
+            case "tracers" -> espTracers;
+            case "storage" -> storageFinder;
+            case "orbit" -> orbitCombat;
+            case "nofall" -> noFall;
+            case "hunger" -> hungerSaver;
+            case "privacy" -> privacyMode;
+            case "portal" -> portalScan;
+            default -> false;
+        };
+    }
+
+    public static void toggleModule(String id) {
+        Minecraft mc = Minecraft.getInstance();
+        switch (id) {
+            case "fly" -> { fly = !fly; if (fly) disableNoclip(mc); }
+            case "speed" -> speed = !speed;
+            case "boat" -> boatFly = !boatFly;
+            case "swim" -> swimBoost = !swimBoost;
+            case "noclip" -> {
+                noclip = !noclip;
+                if (noclip) { fly = false; orbitCombat = false; freecam = false; }
+                else disableNoclip(mc);
+            }
+            case "sprint" -> autoSprint = !autoSprint;
+            case "freecam" -> {
+                freecam = !freecam;
+                if (freecam && mc.player != null) {
+                    disableNoclip(mc);
+                    fly = false;
+                    freecamPosition = mc.player.getEyePosition();
+                }
+            }
+            case "players" -> playerEsp = !playerEsp;
+            case "mobs" -> mobEsp = !mobEsp;
+            case "tracers" -> espTracers = !espTracers;
+            case "storage" -> storageFinder = !storageFinder;
+            case "orbit" -> {
+                orbitCombat = !orbitCombat;
+                if (orbitCombat) { disableNoclip(mc); fly = false; freecam = false; }
+            }
+            case "nofall" -> noFall = !noFall;
+            case "hunger" -> hungerSaver = !hungerSaver;
+            case "privacy" -> privacyMode = !privacyMode;
+            case "portal" -> { portalScan = !portalScan; nearestFrame = null; }
+        }
+    }
+
+    private static void disableNoclip(Minecraft client) {
+        noclip = false;
+        if (client.player != null) {
+            client.player.noPhysics = false;
+            client.player.setNoGravity(false);
+        }
+    }
+
     private static void message(Minecraft client, String text) {
         if (client.player != null) client.player.displayClientMessage(Component.literal("§b[PortalFlight] §f" + text), true);
     }
