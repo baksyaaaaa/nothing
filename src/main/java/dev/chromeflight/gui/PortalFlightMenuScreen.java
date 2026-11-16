@@ -56,6 +56,12 @@ public final class PortalFlightMenuScreen extends Screen {
             }).bounds(tabX, panelY + 38, width, 20).build());
         }
 
+        if (category == 3) {
+            addRenderableWidget(Button.builder(Component.literal("Staff Watch - View alerts"), btn -> {
+                if (this.minecraft != null) this.minecraft.setScreen(new StaffWatchScreen());
+            }).bounds(panelX + 10, panelY + 191, inner, 22).build());
+        }
+
         String[] ids = MODULE_IDS[category];
         String[] labels = MODULE_NAMES[category];
         int buttonWidth = (inner - 8) / 2;
