@@ -42,6 +42,12 @@ Every push to main invokes GitHub Actions **Build PortalFlight**. Get the built 
 
 **Important limitations:** This is experimental, not yet verified to compile or work in-game. Movement and damage/hunger are server-authoritative on multiplayer servers; this mod doesn't grant server permissions or bypass server restrictions. Freecam is experimental. Hunger Saver currently does not implement server-side hunger prevention.
 
+## Staff Watch panel and public vanish mentions
+
+Open **Right Ctrl → Utility → Staff Watch - View alerts** to review current-world warning history (up to 12 recent entries) and the latest client-visible status. The panel records detected spectator entities, invisible player entities, and chat/game messages received by your client that contain the word "vanish". These messages are **not proof** someone used the `/vanish` command: normal players can also type that word, and servers can send arbitrary messages.
+
+Minecraft clients generally cannot see other players' private commands. If a server doesn't broadcast the use of `/vanish` or expose some observable change, PortalFlight cannot know that the command was executed. It never labels a hidden moderator as confirmed solely from this hint.
+
 ## Spectator detection limitations
 
 Staff Watch now reports client-visible spectators and invisible players (which may simply be using an invisibility effect). It **cannot** see staff fully hidden by server-side vanish, distinguish ordinary invisible players from moderators, or know whether anyone is watching through a hidden camera. Absence of warnings is **not** evidence that no staff are watching. Alerts depend on the server sending the player entity to your client. Staff Watch is not an anti-ban guarantee.
