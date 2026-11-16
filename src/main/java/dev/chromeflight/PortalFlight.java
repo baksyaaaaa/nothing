@@ -3,6 +3,7 @@ package dev.chromeflight;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -20,6 +21,10 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 import java.util.UUID;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Deque;
 import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 
@@ -44,6 +49,9 @@ public final class PortalFlight implements ClientModInitializer {
     private static int storageTick;
     private static int spectatorCheckTick;
     private static String spectatorWarning = "";
+    private static final Deque<String> staffWatchEvents = new ArrayDeque<>();
+    private static String lastObservedServerMessage = "";
+    private static String watchWorldKey = "";
     private static final double WATCH_RADIUS = 128.0;
     private static BlockPos nearestFrame;
     private static final double SPEED_FACTOR = 1.8;
@@ -76,6 +84,19 @@ public final class PortalFlight implements ClientModInitializer {
         orbitCombatKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.orbit_combat", GLFW.GLFW_KEY_F12, KeyMapping.Category.MISC));
         noclipKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.noclip", GLFW.GLFW_KEY_C, KeyMapping.Category.MISC));
         clickGuiKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.clickgui", GLFW.GLFW_KEY_RIGHT_CONTROL, KeyMapping.Category.MISC));
+        // Read only messages the server actually delivers to this client.
+        // Other users' private slash commands are not exposed to ordinary clients.
+        ClientReceiveMessageEvents.GAME.register((message, overlay) -> {
+            if (message == null) return;
+            String observed = message.getString();
+            String lower = observed.toLowerCase(java.util.Locale.ROOT);
+            // Only treat explicit server announcements as evidence that the word
+            // "vanish" appeared; this does NOT identify the player who ran /vanish.
+            if (lower.contains("vanish") && !observed.equals(lastObservedServerMessage)) {
+                lastObservedServerMessage = observed;
+                addStaffWatchEvent("Server message mentions vanish: " + truncateWatch(observed));
+            }
+        });
         // Render outlines and optional tracers for entities the client already knows about.
         // WorldRenderContext matrices must be used when submitting vertices in 1.21.11.
         WorldRenderEvents.BEFORE_DEBUG_RENDER.register(context -> {
@@ -149,7 +170,9 @@ public final class PortalFlight implements ClientModInitializer {
                 message(client, "Freecam " + (freecam ? "ON" : "OFF"));
             }
             if (player == null || client.level == null) {
-                spectatorNearby = false; spectatorWarning = ""; noclip = false; return;
+                spectatorNearby = false; spectatorWarning = ""; noclip = false;
+                staffWatchEvents.clear(); watchWorldKey = ""; lastObservedServerMessage = "";
+                return;
             }
             if (noclip) {
                 player.noPhysics = true;
@@ -184,6 +207,15 @@ public final class PortalFlight implements ClientModInitializer {
                 if (nearest != null)
                     player.displayClientMessage(Component.literal("§6Storage: " + nearest.getX() + ", " + nearest.getY() + ", " + nearest.getZ()), true);
             }
+            // Old evidence must not be carried across dimension/world transitions.
+            String activeWorld = client.level.dimension().location().toString();
+            if (!activeWorld.equals(watchWorldKey)) {
+                watchWorldKey = activeWorld;
+                staffWatchEvents.clear();
+                lastObservedServerMessage = "";
+                spectatorWarning = "";
+                spectatorNearby = false;
+            }
             // Staff Watch: monitor only evidence that the client actually receives.
             // Server-side vanish can fully hide staff, so no signal means UNKNOWN,
             // never "no staff watching you". Do not confuse heuristics with proof.
@@ -206,7 +238,10 @@ public final class PortalFlight implements ClientModInitializer {
                 boolean nowWatching = !warning.isEmpty();
                 if (nowWatching && (!spectatorNearby || !warning.equals(spectatorWarning))) {
                     message(client, "WARNING: " + warning);
+                    addStaffWatchEvent(warning);
                 }
+                if (!nowWatching && spectatorNearby)
+                    addStaffWatchEvent("Visible spectator/invisible player signal ended");
                 spectatorNearby = nowWatching;
                 spectatorWarning = warning;
                 if (visibleSpectator && privacyMode) {
@@ -442,6 +477,24 @@ public final class PortalFlight implements ClientModInitializer {
         drawEspLine(lines, pose, c,d,f, c,e,f, red,green,blue);
         drawEspLine(lines, pose, c,d,g, c,e,g, red,green,blue);
         drawEspLine(lines, pose, a,d,g, a,e,g, red,green,blue);
+    }
+
+    public static List<String> getStaffWatchEvents() {
+        return new ArrayList<>(staffWatchEvents);
+    }
+
+    public static String getStaffWatchStatus() {
+        return spectatorNearby ? spectatorWarning : "Unknown - no current client-visible signals";
+    }
+
+    private static String truncateWatch(String value) {
+        String cleaned = value.replace('\n', ' ').replace('\r', ' ');
+        return cleaned.length() > 110 ? cleaned.substring(0, 110) + "..." : cleaned;
+    }
+
+    private static void addStaffWatchEvent(String value) {
+        if (staffWatchEvents.size() >= 12) staffWatchEvents.removeLast();
+        staffWatchEvents.addFirst(java.time.LocalTime.now().withNano(0) + " - " + value);
     }
 
     // The ClickGUI uses the same state as the keybinds; there is no separate copy of each toggle.
