@@ -401,8 +401,7 @@ public final class PortalFlight implements ClientModInitializer {
                     player.fallDistance = vertical < 0 ? Math.max(player.fallDistance, 0.15f) : 0;
 
                     boolean inReach = player.distanceToSqr(target) <= 3.0 * 3.0;
-                    if (inReach && player.hasLineOfSight(target)
-                            && orbitAttackCooldownTicks == 0
+                    if (inReach && orbitAttackCooldownTicks == 0
                             && player.getAttackStrengthScale(0.0f) >= 0.95f) {
                         // Respect the vanilla weapon cooldown so Orbit Combat
                         // doesn't spam weak, uncharged hits every game tick.
