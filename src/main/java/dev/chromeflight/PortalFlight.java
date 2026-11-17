@@ -990,7 +990,13 @@ public final class PortalFlight implements ClientModInitializer {
             }
             case "orbit" -> {
                 orbitCombat = !orbitCombat;
+                combatAttackTicks = 0;
+                orbitAttackCooldownTicks = 0;
+                orbitDiving = false;
+                orbitDiveRecoveryTicks = 0;
+                combatTargetId = null;
                 if (orbitCombat) { disableNoclip(mc); fly = false; freecam = false; }
+                else if (mc.player != null) mc.player.setNoGravity(false);
             }
             case "nofall" -> noFall = !noFall;
             case "hunger" -> hungerSaver = !hungerSaver;
