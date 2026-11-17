@@ -53,7 +53,7 @@ public final class PlayerTravelScreen extends Screen {
                     return;
                 }
                 var pos = other.position();
-                if (PortalFlight.startCoordinateFlight(pos.x, pos.y, pos.z)) {
+                if (PortalFlight.startPlayerTravel(pos.x, pos.y, pos.z)) {
                     minecraft.setScreen(null);
                 } else {
                     info = "Could not begin flight.";
@@ -80,7 +80,7 @@ public final class PlayerTravelScreen extends Screen {
         graphics.fill(0, 0, width, height, 0x99000000);
         graphics.fill(left - 2, top - 2, left + 346, top + 285, 0xFF101622);
         graphics.fill(left, top, left + 344, top + 31, 0xFF202C41);
-        graphics.drawString(font, "FLY TO PLAYER - NO COMMANDS", left + 12, top + 11, 0xFF81D4FA);
+        graphics.drawString(font, "FLY TO PLAYER - UP TO 50K BLOCKS/S", left + 12, top + 11, 0xFF81D4FA);
         graphics.drawString(font, "Only players whose positions are client-visible", left + 12, top + 38, 0xFFD0DEE9);
         if (targets.isEmpty()) {
             graphics.drawString(font, "No nearby/loaded player positions known.", left + 12, top + 82, 0xFFFFCC88);
