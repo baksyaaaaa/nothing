@@ -29,6 +29,9 @@ Use **F12** or **Right Ctrl → Combat → Orbit Combat**. Acquires **any curren
 
 **Mace:** With a mace equipped, it climbs toward approximately **6 blocks above the target** at up to **1.2 blocks/tick**, and begins a rapid descent up to **1.65 blocks/tick** once the weapon is at least **99% charged**. It attempts a mace attack only while airborne, falling, in line of sight, and with more than 1.5 blocks of client fall distance. Following a hit it quickly resets for the next climb. **Attack attempts have no client-side distance cap** (but still check line of sight, mace descent, and cooldown). This does not grant infinite real reach: the server can reject attacks outside its allowed range. The server controls damage, attack cooldowns, movement acceptance, and mace smash mechanics. A hit can fail even when the client attempts one.
 
+
+**Flying-target tracking upgrade:** prediction now leads fast client-visible targets by up to two ticks, based on up to 12 blocks/tick of observed movement. START/END tick re-locks snap closer beside flying players (about 1.8 blocks for ordinary attacks, 1.15 blocks when using a mace). During a mace descent, horizontal pursuit aims at the predicted moving target instead of completing a normal circular orbit; the dive is abandoned and a new re-lock attempted if the target gets more than 10 blocks away. Aim turning is also faster. The server still decides whether attacks are in reach, whether teleport packets are accepted, and whether mace smash damage applies. This does not guarantee kills.
+
 ## AutoTotem and AutoLeave
 
 Open **Right Ctrl → Utility** to enable **AutoTotem** or **AutoLeave** independently. AutoTotem looks for a Totem of Undying in your normal inventory or hotbar and uses the vanilla inventory offhand-swap action to equip it when no totem is equipped. It does not create totems, override a server's inventory, or run while another container is open.
