@@ -102,13 +102,11 @@ Open **Right Ctrl → Movement → Coordinate Flight Settings** (or Utility → 
 
 **TP to Coordinates** now writes a persistent **[PortalFlight TP]** status to Minecraft chat as soon as its position packet is sent and again after roughly two seconds. On failure, it reports the distance remaining and distinguishes a return near the starting location (**likely server correction**) from ending elsewhere. The exact server-side rejection reason cannot be recovered unless the server provides it. The Coordinate Flight screen also displays the latest teleport status when reopened. Local safety blocks (unsafe drop, occupied landing, unloaded downward destination) explain why a packet was **not** sent. **Failed TP never starts cruise automatically.**
 
-## Mid-air TP destinations
+## Mid-air and downward TP
 
-**TP to Coordinates** now permits destinations **in empty air**; you do not need a solid block underneath. It automatically enables the normal **Fly** module when sending the teleport so the client can hover at the destination. If the destination chunk is loaded, PortalFlight rejects positions colliding with solid blocks at the feet or head. Unloaded remote chunks cannot be collision-verified on the client, and the server can still correct the teleport or apply fall damage. Existing large-downward-drop and already-falling safety limits remain in place.
+**TP to Coordinates** permits destinations **in empty air**, regardless of whether the target Y is above or below the current Y. There is no downward-drop or already-falling rejection. The mod **enables Fly immediately** when sending the TP, so it tries to hold position in mid-air. If the destination chunk is loaded, the mod still blocks coordinates inside solid blocks at the feet or head. An unloaded destination cannot be checked locally.
 
-## Downward TP safety
-
-**TP to Coordinates (Instant Attempt)** now refuses a direct teleport more than **2 blocks downward**. This is intentional: resetting client-side fall distance does not prevent the server from calculating lethal fall damage. It also refuses attempts when already falling more than 2 blocks, checks for clear space at the destination when loaded, and requires a solid landing below for a small downward TP. Unsafe requests show a reason in the coordinate screen and send **no** movement packet. **There is no automatic cruise fallback.** For larger descents, use normal, cautious movement or a server-supported teleport. No client-side safety check guarantees that a multiplayer server will not apply fall damage.
+This removes the **client-side** drop restriction; it does **not** guarantee immunity from server-calculated fall damage or guarantee that a teleport packet is accepted. Failed TP does not start cruise flight.
 
 ## Client-side homes
 
