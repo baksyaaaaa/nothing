@@ -48,6 +48,10 @@ Open **Right Ctrl → Utility → Staff Watch - View alerts** to review current-
 
 Minecraft clients generally cannot see other players' private commands. If a server doesn't broadcast the use of `/vanish` or expose some observable change, PortalFlight cannot know that the command was executed. It never labels a hidden moderator as confirmed solely from this hint.
 
+## Fly to Player (no commands required)
+
+Open **Right Ctrl → Movement → Fly to Player** to choose from players whose positions the server has loaded and sent to the client. Selecting one starts the existing high-speed Coordinate Flight toward that player's position at selection time. It requires no server commands or operator privileges, but is **not instant teleportation**. The server may correct or reject movement. The client cannot discover coordinates of distant or hidden players that the server never sends to it, and the destination does not automatically update if a player moves.
+
 ## Coordinate Flight autopilot
 
 Open **Right Ctrl → Utility → Coordinate Flight - Fly to XYZ**. Enter destination coordinates and click **Fly to Coordinates**. PortalFlight follows three phases: (1) ascend to **Y=200** (or stay higher if already above it or the destination is higher), (2) fly horizontally toward the target X/Z at a configurable maximum speed (default 320 blocks/second; enter any positive custom speed up to 1280 blocks/second in **Right Ctrl → Movement → Coordinate Flight Settings**, saved to `config/portalflight.properties`) of client-predicted movement, then (3) descend or ascend to the target Y. The mode slows near waypoints and stops on arrival or after persistent lack of movement. **STOP Flight** cancels it.
