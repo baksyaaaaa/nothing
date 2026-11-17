@@ -752,6 +752,11 @@ public final class PortalFlight implements ClientModInitializer {
     public static boolean startPlayerTravel(double x, double y, double z) {
         if (!startCoordinateFlight(x, y, z)) return false;
         highSpeedPlayerTravel = true;
+        // Player travel ascends to Y=400 before crossing X/Z, then descends.
+        // Stay above 400 if already higher, or if the target is higher.
+        Minecraft mc = Minecraft.getInstance();
+        coordinateFlightCruiseY = Math.max(400.0, Math.max(mc.player.getY(), y));
+        coordinateFlightStage = mc.player.getY() < coordinateFlightCruiseY - 0.8 ? 0 : 1;
         return true;
     }
 
