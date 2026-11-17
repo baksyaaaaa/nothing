@@ -23,20 +23,20 @@ public final class PortalFlightMenuScreen extends Screen {
             {"orbit", "autototem", "autoleave"},
             {"fly", "speed", "boat", "swim", "noclip", "sprint",
              "autowalk", "autojump", "highjump", "fastfall", "waterwalk",
-             "autosneak", "noslow", "elytraboost"},
+             "autosneak", "noslow", "elytraboost", "nofall"},
             {"freecam", "players", "mobs", "tracers", "storage"},
             {"hunger", "privacy"},
-            {"portal", "nofall"},
+            {"portal"},
             {}
     };
     private static final String[][] NAMES = {
             {"Orbit Combat", "AutoTotem", "AutoLeave"},
             {"Fly", "Speed", "Boat Fly", "Swim Boost", "Noclip", "Auto Sprint",
              "AutoWalk", "AutoJump", "HighJump", "FastFall", "WaterWalk",
-             "AutoSneak", "NoSlow", "Elytra Boost"},
+             "AutoSneak", "NoSlow", "Elytra Boost", "NoFall"},
             {"Freecam", "Player ESP", "Mob ESP", "Tracers", "Storage ESP"},
             {"Hunger Saver", "Spectator Privacy"},
-            {"Portal Locator", "NoFall"},
+            {"Portal Locator"},
             {}
     };
     private static final int PER_PAGE = 8;
