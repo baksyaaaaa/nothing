@@ -78,8 +78,6 @@ public final class PortalFlight implements ClientModInitializer {
     private static int orbitSnapCooldownTicks;
     private static UUID combatTargetId;
     private static int combatOrbitDirection = 1;
-    // Client-side attack attempt only; servers still enforce their own range.
-    private static final double ORBIT_ATTACK_ATTEMPT_RANGE = 8.0;
     private static final double ORBIT_SPEED = 0.78;
     private static final double ORBIT_ACCELERATION = 0.20;
     private static final double ORBIT_MAX_HORIZONTAL_SPEED = 1.25;
@@ -493,11 +491,8 @@ public final class PortalFlight implements ClientModInitializer {
             if (orbitCombat && !noclip && !freecam && !fly && player.getVehicle() == null
                     && client.gameMode != null && client.screen == null) {
                 Player target = null;
-                // Minecraft render distance is measured in chunks (16 blocks).
-                // The server may track/send player entities across a smaller area.
-                int renderChunks = client.options.renderDistance().get();
-                double maxRange = Math.max(2, renderChunks) * 16.0;
-                double maxRangeSqr = maxRange * maxRange;
+                // No client-side detection radius. Only player entities already
+                // tracked and sent by the server can have known live positions.
                 if (combatTargetId != null) {
                     for (Player other : client.level.players()) {
                         if (other.getUUID().equals(combatTargetId) && other != player
@@ -511,7 +506,7 @@ public final class PortalFlight implements ClientModInitializer {
                     }
                 }
                 if (target == null) {
-                    double nearest = maxRangeSqr;
+                    double nearest = Double.POSITIVE_INFINITY;
                     for (Player other : client.level.players()) {
                         if (other == player || !other.isAlive() || other.isSpectator()) continue;
                         double distance = player.distanceToSqr(other);
@@ -665,13 +660,13 @@ public final class PortalFlight implements ClientModInitializer {
 
                     // Mace only strikes during a charged, descending smash.
                     // Ordinary weapons still respect their vanilla recharge.
-                    boolean inReach = player.distanceToSqr(target)
-                            <= ORBIT_ATTACK_ATTEMPT_RANGE * ORBIT_ATTACK_ATTEMPT_RANGE;
+                    // Attempt attacks regardless of client-side distance.
+                    // The server still validates range, line of sight and damage.
                     boolean maceReady = !wieldingMace || (orbitDiving
                             && !player.onGround()
                             && player.getDeltaMovement().y < -0.10
                             && player.fallDistance > 1.5f);
-                    if (inReach && player.hasLineOfSight(target)
+                    if (player.hasLineOfSight(target)
                             && maceReady && orbitAttackCooldownTicks == 0
                             && player.getAttackStrengthScale(0.0f) >= 0.99f) {
                         client.gameMode.attack(player, target);
