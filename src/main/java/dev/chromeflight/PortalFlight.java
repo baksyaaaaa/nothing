@@ -211,7 +211,10 @@ public final class PortalFlight implements ClientModInitializer {
                 if (entity instanceof LivingEntity other
                         && other.getUUID().equals(combatTargetId)
                         && validOrbitTarget(other, client.player)) {
-                    attemptOrbitSnap(client, client.player, other, other.position());
+                    Vec3 leadPosition = predictOrbitTarget(other, orbitLastTargetPosition,
+                            orbitLastTargetId);
+                    // During a charged dive do not reset fall distance with a TP.
+                    attemptOrbitSnap(client, client.player, other, leadPosition);
                     break;
                 }
             }
@@ -577,31 +580,26 @@ public final class PortalFlight implements ClientModInitializer {
                     if (orbitAttackCooldownTicks > 0) orbitAttackCooldownTicks--;
                     if (orbitDiveRecoveryTicks > 0) orbitDiveRecoveryTicks--;
 
-                    // Track per-tick displacement for a modest lead on fast
-                    // moving targets. Only use entity data the client receives.
+                    // Extrapolate from the latest received movement. Fast gliding
+                    // targets need a larger lead than walking targets, but limit
+                    // prediction error when movement packets jump unexpectedly.
                     Vec3 targetPosition = target.position();
-                    Vec3 trackedVelocity = Vec3.ZERO;
-                    if (target.getUUID().equals(orbitLastTargetId)
-                            && orbitLastTargetPosition != null) {
-                        trackedVelocity = targetPosition.subtract(orbitLastTargetPosition);
-                    }
+                    Vec3 predictedTarget = predictOrbitTarget(target,
+                            orbitLastTargetPosition, orbitLastTargetId);
                     orbitLastTargetId = target.getUUID();
                     orbitLastTargetPosition = targetPosition;
-                    // Avoid huge/unstable leads from occasional large entity
-                    // corrections. Use a small velocity-dependent lead.
-                    double targetSpeed = trackedVelocity.length();
-                    if (targetSpeed > 2.5) {
-                        trackedVelocity = trackedVelocity.scale(2.5 / targetSpeed);
-                    }
-                    double lead = Math.min(1.6, 0.45 + targetSpeed * 0.28);
-                    Vec3 predictedTarget = targetPosition.add(trackedVelocity.scale(lead));
                     Vec3 delta = targetPosition.subtract(player.position());
                     double radius = Math.hypot(delta.x, delta.z);
                     boolean wieldingMace = player.getMainHandItem().is(Items.MACE);
 
-                    // Second per-tick re-lock opportunity. Don't teleport during
-                    // the actual mace dive: that resets fall distance and can
-                    // prevent the server from awarding smash damage.
+                    // If a flying player escapes the smash by several blocks,
+                    // abandon that dive and immediately reacquire their position.
+                    if (orbitDiving && player.distanceToSqr(target) > 10.0 * 10.0) {
+                        orbitDiving = false;
+                        orbitSmoothedVelocity = Vec3.ZERO;
+                    }
+                    // Reposition right beside the tracked flying target when
+                    // not diving, so the attack packet is sent from close range.
                     if (!orbitDiving && attemptOrbitSnap(client, player, target, predictedTarget)) {
                         orbitSmoothedVelocity = Vec3.ZERO;
                         delta = target.position().subtract(player.position());
@@ -615,7 +613,7 @@ public final class PortalFlight implements ClientModInitializer {
                                     0, Math.cos(Math.toRadians(player.getYRot())));
                     Vec3 tangent = new Vec3(-inward.z, 0, inward.x)
                             .scale(combatOrbitDirection);
-                    double desiredRadius = wieldingMace && orbitDiving ? 1.6 : ORBIT_RADIUS;
+                    double desiredRadius = wieldingMace ? 1.4 : ORBIT_RADIUS;
                     double correction = Math.max(-0.55, Math.min(0.95,
                             (radius - desiredRadius) * 0.24));
                     // Orbit contribution fades naturally when far away.
@@ -626,7 +624,8 @@ public final class PortalFlight implements ClientModInitializer {
                     Vec3 horizontal = tangent.scale(ORBIT_SPEED * orbitBlend)
                             .add(inward.scale(correction));
                     double horizontalLimit = Math.min(ORBIT_MAX_HORIZONTAL_SPEED,
-                            Math.max(0.75, radius * 0.32));
+                            Math.max(wieldingMace ? 3.5 : 0.75,
+                                    radius * (wieldingMace ? 0.85 : 0.32)));
                     if (horizontal.lengthSqr() > horizontalLimit * horizontalLimit) {
                         horizontal = horizontal.normalize().scale(horizontalLimit);
                     }
@@ -667,12 +666,23 @@ public final class PortalFlight implements ClientModInitializer {
                                         (desiredHeight - player.getY()) * 0.22));
                         player.fallDistance = 0;
                     }
-                    // Limit per-tick acceleration to prevent violent direction
-                    // reversals while keeping continuous flight around targets.
+                    // During a mace dive actively track the predicted flight path,
+                    // rather than circling the target and falling behind.
+                    if (wieldingMace && orbitDiving) {
+                        Vec3 follow = predictedTarget.subtract(player.position());
+                        Vec3 pursuit = new Vec3(follow.x, 0, follow.z).scale(0.72);
+                        double maxPursuit = 12.0;
+                        if (pursuit.lengthSqr() > maxPursuit * maxPursuit) {
+                            pursuit = pursuit.normalize().scale(maxPursuit);
+                        }
+                        horizontal = pursuit;
+                    }
+                    // Limit acceleration while permitting fast course correction
+                    // against targets moving many blocks in a single tick.
                     Vec3 wantedVelocity = new Vec3(horizontal.x, vertical, horizontal.z);
                     Vec3 velocityDifference = wantedVelocity.subtract(orbitSmoothedVelocity);
                     double accelerationLimit = wieldingMace
-                            ? (orbitDiving ? 0.95 : 0.65) : ORBIT_ACCELERATION;
+                            ? (orbitDiving ? 4.0 : 1.6) : ORBIT_ACCELERATION;
                     if (velocityDifference.lengthSqr() > accelerationLimit * accelerationLimit) {
                         velocityDifference = velocityDifference.normalize().scale(accelerationLimit);
                     }
@@ -692,8 +702,8 @@ public final class PortalFlight implements ClientModInitializer {
                         float desiredPitch = (float) -Math.toDegrees(Math.atan2(aim.y, flatAim));
                         float yawDifference = (desiredYaw - player.getYRot() + 540.0f) % 360.0f - 180.0f;
                         float pitchDifference = desiredPitch - player.getXRot();
-                        player.setYRot(player.getYRot() + Math.max(-34.0f, Math.min(34.0f, yawDifference)));
-                        player.setXRot(player.getXRot() + Math.max(-26.0f, Math.min(26.0f, pitchDifference)));
+                        player.setYRot(player.getYRot() + Math.max(-90.0f, Math.min(90.0f, yawDifference)));
+                        player.setXRot(player.getXRot() + Math.max(-70.0f, Math.min(70.0f, pitchDifference)));
                     }
 
                     // Mace only strikes during a charged, descending smash.
@@ -1317,6 +1327,22 @@ public final class PortalFlight implements ClientModInitializer {
         return target instanceof Player other && !other.isSpectator();
     }
 
+    private static Vec3 predictOrbitTarget(LivingEntity target,
+            Vec3 previousPosition, UUID previousId) {
+        Vec3 now = target.position();
+        Vec3 displacement = target.getDeltaMovement();
+        if (previousPosition != null && target.getUUID().equals(previousId)) {
+            Vec3 observed = now.subtract(previousPosition);
+            if (observed.lengthSqr() > 0.0001) displacement = observed;
+        }
+        // Extrapolate at most 12 blocks/tick of server-supplied movement.
+        // An enormous position correction should not cause a huge overshoot.
+        double speed = displacement.length();
+        if (speed > 12.0) displacement = displacement.scale(12.0 / speed);
+        double ticksAhead = Math.min(2.0, 0.75 + speed * 0.12);
+        return now.add(displacement.scale(ticksAhead));
+    }
+
     private static boolean attemptOrbitSnap(Minecraft client, LocalPlayer player,
             LivingEntity target, Vec3 predictedTarget) {
         if (client.getConnection() == null || client.level == null
@@ -1324,8 +1350,16 @@ public final class PortalFlight implements ClientModInitializer {
         Vec3 lateral = player.position().subtract(target.position());
         lateral = new Vec3(lateral.x, 0, lateral.z);
         if (lateral.lengthSqr() < 0.01) lateral = new Vec3(1, 0, 0);
-        Vec3 destination = predictedTarget.add(lateral.normalize().scale(ORBIT_RADIUS))
-                .add(0, player.getMainHandItem().is(Items.MACE) ? ORBIT_DIVE_HEIGHT : 2.0, 0);
+        // Position closer to the opponent than the old 3.7-block ring.
+        // In a mace cycle aim almost directly overhead to keep a moving
+        // target within attack reach as the dive begins.
+        boolean mace = player.getMainHandItem().is(Items.MACE);
+        double sideOffset = mace ? 1.15 : 1.8;
+        Vec3 destination = predictedTarget.add(lateral.normalize().scale(sideOffset))
+                .add(0, mace ? ORBIT_DIVE_HEIGHT : 0.5, 0);
+        if (player.position().distanceToSqr(destination) < 0.20 * 0.20) {
+            return false; // Avoid resending identical teleports.
+        }
         BlockPos feet = BlockPos.containing(destination);
         if (!client.level.hasChunkAt(feet)
                 || !client.level.getBlockState(feet)
