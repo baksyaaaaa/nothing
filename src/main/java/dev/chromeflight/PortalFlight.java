@@ -1106,18 +1106,6 @@ public final class PortalFlight implements ClientModInitializer {
                 || Math.abs(x) > 29999984 || Math.abs(z) > 29999984
                 || y < -2048 || y > 2048) return false;
 
-        // A one-packet downward teleport does not erase the server's tracked
-        // fall distance. Reject large drops rather than claiming NoFall works.
-        double downwardDrop = mc.player.getY() - y;
-        if (downwardDrop > 2.0) {
-            coordinateTeleportError = "Unsafe downward TP (" + (int) Math.ceil(downwardDrop)
-                    + " blocks). Not sent: server fall damage can kill you.";
-            return false;
-        }
-        if (mc.player.fallDistance > 2.0f) {
-            coordinateTeleportError = "Unsafe TP while falling. Land safely first.";
-            return false;
-        }
         // Never place the player inside blocks when collision data is available.
         // A solid floor is not required: the destination may be in mid-air.
         BlockPos feet = BlockPos.containing(x, y, z);
@@ -1131,13 +1119,13 @@ public final class PortalFlight implements ClientModInitializer {
                 return false;
             }
         }
-        // Open air is a valid destination: Flight starts after the position
-        // packet. Unloaded chunks cannot be collision-checked client-side;
+        // Open air is a valid destination: Fly is enabled immediately.
+        // Unloaded chunks cannot be collision-checked client-side;
         // the server may still reject the teleport or correct a bad position.
 
         stopCoordinateFlight();
         disableNoclip(mc);
-        fly = false;
+        fly = true;
         boatFly = false;
         orbitCombat = false;
         freecam = false;
@@ -1156,7 +1144,7 @@ public final class PortalFlight implements ClientModInitializer {
         statusPackets = Math.max(0, statusPackets);
 
         mc.player.setDeltaMovement(Vec3.ZERO);
-        mc.player.setNoGravity(false);
+        mc.player.setNoGravity(true);
         for (int i = 0; i < statusPackets; i++) {
             mc.getConnection().send(new ServerboundMovePlayerPacket.StatusOnly(true, true));
         }
