@@ -16,13 +16,13 @@ public final class PortalFlightMenuScreen extends Screen {
         {"fly", "speed", "boat", "swim", "noclip", "sprint"},
         {"freecam", "players", "mobs", "tracers", "storage"},
         {"orbit"},
-        {"nofall", "hunger", "privacy", "portal"}
+        {"nofall", "hunger", "privacy", "portal", "autototem", "autoleave"}
     };
     private static final String[][] MODULE_NAMES = {
         {"Fly", "Speed", "Boat Fly", "Swim Boost", "Noclip", "Auto Sprint"},
         {"Freecam", "Player ESP", "Mob ESP", "ESP Tracers", "Storage ESP"},
         {"Orbit Combat"},
-        {"No Fall", "Hunger Saver", "Spectator Privacy", "Portal Locator"}
+        {"No Fall", "Hunger Saver", "Spectator Privacy", "Portal Locator", "AutoTotem", "AutoLeave"}
     };
 
     private int category;
@@ -66,6 +66,10 @@ public final class PortalFlightMenuScreen extends Screen {
         }
 
         if (category == 3) {
+            addRenderableWidget(Button.builder(autoLeaveThresholdLabel(), btn -> {
+                PortalFlight.toggleAutoLeaveThreshold();
+                btn.setMessage(autoLeaveThresholdLabel());
+            }).bounds(panelX + 10, panelY + 163, inner, 22).build());
             addRenderableWidget(Button.builder(Component.literal("Staff Watch - View alerts"), btn -> {
                 if (this.minecraft != null) this.minecraft.setScreen(new StaffWatchScreen());
             }).bounds(panelX + 10, panelY + 191, inner, 22).build());
@@ -89,6 +93,12 @@ public final class PortalFlightMenuScreen extends Screen {
                 btn.setMessage(moduleLabel(id, label));
             }).bounds(x, y, buttonWidth, 24).build());
         }
+    }
+
+    private static Component autoLeaveThresholdLabel() {
+        return Component.literal(PortalFlight.getAutoLeaveThreshold() == 2.0f
+                ? "AutoLeave threshold: 1 heart (2 HP)"
+                : "AutoLeave threshold: 0.5 heart (1 HP)");
     }
 
     private static Component moduleLabel(String id, String label) {
