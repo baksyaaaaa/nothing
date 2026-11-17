@@ -3,140 +3,190 @@ package dev.chromeflight.gui;
 import dev.chromeflight.PortalFlight;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
 /**
- * Original PortalFlight ClickGUI. A dark category layout inspired by general
- * Minecraft client GUI conventions; no NiceWurst code or features are included.
+ * Original Meteor-inspired, six-category PortalFlight menu.
+ * Category names and search/navigation follow the same organizational ideas,
+ * but the UI and gameplay modules are PortalFlight implementations.
  */
 public final class PortalFlightMenuScreen extends Screen {
-    private static final String[] CATEGORIES = {"Movement", "Render", "Combat", "Utility"};
-    private static final String[][] MODULE_IDS = {
-        {"fly", "speed", "boat", "swim", "noclip", "sprint", "autowalk", "autojump", "highjump", "fastfall", "waterwalk"},
-        {"freecam", "players", "mobs", "tracers", "storage"},
-        {"orbit"},
-        {"nofall", "hunger", "privacy", "portal", "autototem", "autoleave"}
+    private static final String[] CATEGORIES =
+            {"Combat", "Movement", "Render", "Player", "World", "Misc"};
+    private static final String[][] IDS = {
+            {"orbit", "autototem", "autoleave"},
+            {"fly", "speed", "boat", "swim", "noclip", "sprint",
+             "autowalk", "autojump", "highjump", "fastfall", "waterwalk",
+             "autosneak", "noslow", "elytraboost"},
+            {"freecam", "players", "mobs", "tracers", "storage"},
+            {"hunger", "privacy"},
+            {"portal", "nofall"},
+            {}
     };
-    private static final String[][] MODULE_NAMES = {
-        {"Fly", "Speed", "Boat Fly", "Swim Boost", "Noclip", "Auto Sprint", "AutoWalk", "AutoJump", "HighJump", "FastFall", "WaterWalk"},
-        {"Freecam", "Player ESP", "Mob ESP", "ESP Tracers", "Storage ESP"},
-        {"Orbit Combat"},
-        {"No Fall", "Hunger Saver", "Spectator Privacy", "Portal Locator", "AutoTotem", "AutoLeave"}
+    private static final String[][] NAMES = {
+            {"Orbit Combat", "AutoTotem", "AutoLeave"},
+            {"Fly", "Speed", "Boat Fly", "Swim Boost", "Noclip", "Auto Sprint",
+             "AutoWalk", "AutoJump", "HighJump", "FastFall", "WaterWalk",
+             "AutoSneak", "NoSlow", "Elytra Boost"},
+            {"Freecam", "Player ESP", "Mob ESP", "Tracers", "Storage ESP"},
+            {"Hunger Saver", "Spectator Privacy"},
+            {"Portal Locator", "NoFall"},
+            {}
     };
-
-    private int category;
-    private int movementPage;
+    private static final int PER_PAGE = 8;
+    private final int category;
+    private final int page;
+    private final String filter;
     private int panelX;
     private int panelY;
     private int panelWidth;
+    private EditBox searchBox;
 
     public PortalFlightMenuScreen() {
-        this(0);
+        this(1, 0, "");
     }
 
-    private PortalFlightMenuScreen(int selectedCategory) {
-        this(selectedCategory, 0);
-    }
-
-    private PortalFlightMenuScreen(int selectedCategory, int selectedPage) {
-        super(Component.literal("PortalFlight ClickGUI"));
-        this.category = selectedCategory;
-        this.movementPage = selectedPage;
+    private PortalFlightMenuScreen(int category, int page, String filter) {
+        super(Component.literal("PortalFlight Modules"));
+        this.category = category;
+        this.page = page;
+        this.filter = filter;
     }
 
     @Override
     protected void init() {
-        panelWidth = Math.min(390, this.width - 18);
+        panelWidth = Math.min(480, this.width - 20);
         panelX = (this.width - panelWidth) / 2;
-        panelY = Math.max(12, (this.height - 285) / 2);
+        panelY = Math.max(5, (this.height - 378) / 2);
         int inner = panelWidth - 20;
-        int tabWidth = inner / CATEGORIES.length;
-
+        int columnWidth = (inner - 10) / 3;
         for (int i = 0; i < CATEGORIES.length; i++) {
             final int choice = i;
-            int tabX = panelX + 10 + i * tabWidth;
-            int width = (i == CATEGORIES.length - 1) ? inner - i * tabWidth : tabWidth - 2;
-            addRenderableWidget(Button.builder(Component.literal(CATEGORIES[i]), btn -> {
-                if (this.minecraft != null) this.minecraft.setScreen(new PortalFlightMenuScreen(choice));
-            }).bounds(tabX, panelY + 38, width, 20).build());
+            int col = i % 3;
+            int row = i / 3;
+            addRenderableWidget(Button.builder(
+                    Component.literal((category == i ? "● " : "") + CATEGORIES[i]), btn -> {
+                if (this.minecraft != null) {
+                    this.minecraft.setScreen(new PortalFlightMenuScreen(choice, 0, filter));
+                }
+            }).bounds(panelX + 10 + col * (columnWidth + 5),
+                    panelY + 36 + row * 27, columnWidth, 23).build());
         }
 
-        if (category == 0) {
-            Button previousPage = Button.builder(Component.literal("Prev modules"), btn -> {
-                if (this.minecraft != null)
-                    this.minecraft.setScreen(new PortalFlightMenuScreen(0, 0));
-            }).bounds(panelX + 10, panelY + 162, (inner - 8) / 2, 21).build();
-            previousPage.active = movementPage > 0;
-            addRenderableWidget(previousPage);
-            Button nextPage = Button.builder(Component.literal("Next modules"), btn -> {
-                if (this.minecraft != null)
-                    this.minecraft.setScreen(new PortalFlightMenuScreen(0, 1));
-            }).bounds(panelX + 18 + (inner - 8) / 2, panelY + 162,
-                    (inner - 8) / 2, 21).build();
-            nextPage.active = movementPage == 0;
-            addRenderableWidget(nextPage);
-            addRenderableWidget(Button.builder(Component.literal("Coordinate Flight Settings - Speed / XYZ"), btn -> {
-                if (this.minecraft != null) this.minecraft.setScreen(new CoordinateFlightScreen());
-            }).bounds(panelX + 10, panelY + 191, inner, 22).build());
-            addRenderableWidget(Button.builder(Component.literal("Fly to Player - No Commands"), btn -> {
-                if (this.minecraft != null) this.minecraft.setScreen(new PlayerTravelScreen());
-            }).bounds(panelX + 10, panelY + 218, inner, 22).build());
+        searchBox = new EditBox(this.font, panelX + 10, panelY + 96,
+                inner - 76, 20, Component.literal("Module search"));
+        searchBox.setMaxLength(48);
+        searchBox.setValue(filter);
+        addRenderableWidget(searchBox);
+        addRenderableWidget(Button.builder(Component.literal("Find"), btn -> {
+            if (this.minecraft != null) this.minecraft.setScreen(
+                    new PortalFlightMenuScreen(category, 0, searchBox.getValue().trim()));
+        }).bounds(panelX + inner - 60, panelY + 96, 60, 20).build());
+
+        List<Integer> matches = matchesForCategory();
+        int pages = Math.max(1, (matches.size() + PER_PAGE - 1) / PER_PAGE);
+        int visiblePage = Math.min(page, pages - 1);
+        for (int index = visiblePage * PER_PAGE;
+                index < Math.min(matches.size(), (visiblePage + 1) * PER_PAGE); index++) {
+            int idIndex = matches.get(index);
+            String id = IDS[category][idIndex];
+            String name = NAMES[category][idIndex];
+            int visible = index - visiblePage * PER_PAGE;
+            int buttonWidth = (inner - 8) / 2;
+            int x = panelX + 10 + (visible % 2) * (buttonWidth + 8);
+            int y = panelY + 132 + (visible / 2) * 29;
+            addRenderableWidget(Button.builder(moduleLabel(id, name), btn -> {
+                PortalFlight.toggleModule(id);
+                btn.setMessage(moduleLabel(id, name));
+            }).bounds(x, y, buttonWidth, 25).build());
         }
 
-        if (category == 3) {
+        Button previous = Button.builder(Component.literal("< Prev"), btn -> {
+            navigate(category, visiblePage - 1);
+        }).bounds(panelX + 10, panelY + 258, 80, 22).build();
+        previous.active = visiblePage > 0;
+        addRenderableWidget(previous);
+        Button next = Button.builder(Component.literal("Next >"), btn -> {
+            navigate(category, visiblePage + 1);
+        }).bounds(panelX + inner - 80, panelY + 258, 80, 22).build();
+        next.active = visiblePage + 1 < pages;
+        addRenderableWidget(next);
+
+        if (category == 1) {
+            addRenderableWidget(Button.builder(Component.literal("Coordinate Flight / TP Settings"),
+                    btn -> {
+                        if (this.minecraft != null) this.minecraft.setScreen(
+                                new CoordinateFlightScreen());
+                    }).bounds(panelX + 10, panelY + 295, inner, 21).build());
+            addRenderableWidget(Button.builder(Component.literal("Fly to Player"),
+                    btn -> {
+                        if (this.minecraft != null) this.minecraft.setScreen(
+                                new PlayerTravelScreen());
+                    }).bounds(panelX + 10, panelY + 321, inner, 21).build());
+        } else if (category == 0) {
             addRenderableWidget(Button.builder(autoLeaveThresholdLabel(), btn -> {
                 PortalFlight.toggleAutoLeaveThreshold();
                 btn.setMessage(autoLeaveThresholdLabel());
-            }).bounds(panelX + 10, panelY + 163, inner, 22).build());
-            addRenderableWidget(Button.builder(Component.literal("Staff Watch - View alerts"), btn -> {
-                if (this.minecraft != null) this.minecraft.setScreen(new StaffWatchScreen());
-            }).bounds(panelX + 10, panelY + 191, inner, 22).build());
-            addRenderableWidget(Button.builder(Component.literal("Coordinate Flight - Fly to XYZ"), btn -> {
-                if (this.minecraft != null) this.minecraft.setScreen(new CoordinateFlightScreen());
-            }).bounds(panelX + 10, panelY + 218, inner, 22).build());
+            }).bounds(panelX + 10, panelY + 295, inner, 22).build());
+        } else if (category == 5) {
+            addRenderableWidget(Button.builder(Component.literal("Staff Watch"),
+                    btn -> {
+                        if (this.minecraft != null) this.minecraft.setScreen(
+                                new StaffWatchScreen());
+                    }).bounds(panelX + 10, panelY + 295, inner, 22).build());
         }
+    }
 
-        String[] ids = MODULE_IDS[category];
-        String[] labels = MODULE_NAMES[category];
-        int buttonWidth = (inner - 8) / 2;
-        int pageStart = category == 0 ? movementPage * 6 : 0;
-        int pageEnd = category == 0 ? Math.min(pageStart + 6, ids.length) : ids.length;
-        for (int i = pageStart; i < pageEnd; i++) {
-            final String id = ids[i];
-            final String label = labels[i];
-            int indexOnPage = i - pageStart;
-            int col = indexOnPage % 2;
-            int row = indexOnPage / 2;
-            int x = panelX + 10 + col * (buttonWidth + 8);
-            int y = panelY + 72 + row * 29;
-            addRenderableWidget(Button.builder(moduleLabel(id, label), btn -> {
-                PortalFlight.toggleModule(id);
-                btn.setMessage(moduleLabel(id, label));
-            }).bounds(x, y, buttonWidth, 24).build());
+    private List<Integer> matchesForCategory() {
+        List<Integer> matches = new ArrayList<>();
+        String query = filter.toLowerCase(Locale.ROOT);
+        for (int i = 0; i < IDS[category].length; i++) {
+            if (query.isEmpty() || NAMES[category][i].toLowerCase(Locale.ROOT).contains(query)
+                    || IDS[category][i].contains(query)) {
+                matches.add(i);
+            }
         }
+        return matches;
+    }
+
+    private void navigate(int newCategory, int newPage) {
+        if (this.minecraft != null) this.minecraft.setScreen(
+                new PortalFlightMenuScreen(newCategory, newPage,
+                        searchBox == null ? filter : searchBox.getValue().trim()));
+    }
+
+    private static Component moduleLabel(String id, String name) {
+        return Component.literal((PortalFlight.isModuleEnabled(id) ? "[ON] " : "[OFF] ") + name);
     }
 
     private static Component autoLeaveThresholdLabel() {
         return Component.literal(PortalFlight.getAutoLeaveThreshold() == 2.0f
-                ? "AutoLeave threshold: 1 heart (2 HP)"
-                : "AutoLeave threshold: 0.5 heart (1 HP)");
-    }
-
-    private static Component moduleLabel(String id, String label) {
-        return Component.literal((PortalFlight.isModuleEnabled(id) ? "[ON]  " : "[OFF]  ") + label);
+                ? "AutoLeave limit: 1 heart (2 HP)"
+                : "AutoLeave limit: half a heart (1 HP)");
     }
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        int bottom = panelY + 285;
-        graphics.fill(0, 0, this.width, this.height, 0x99000000);
-        graphics.fill(panelX - 2, panelY - 2, panelX + panelWidth + 2, bottom + 2, 0xFF101622);
-        graphics.fill(panelX, panelY, panelX + panelWidth, panelY + 32, 0xFF202C41);
-        graphics.fill(panelX, panelY + 31, panelX + panelWidth, panelY + 33, 0xFF50C8ED);
-        graphics.drawString(this.font, "PORTALFLIGHT", panelX + 11, panelY + 11, 0xFFECF5FF);
-        graphics.drawString(this.font, "RIGHT CTRL  /  ESC TO CLOSE", panelX + 10, bottom - 19, 0xFF9CABBE);
-        graphics.drawString(this.font, CATEGORIES[category].toUpperCase(), panelX + 12, panelY + 61, 0xFF7FD9F7);
+        int bottom = panelY + 378;
+        graphics.fill(0, 0, this.width, this.height, 0xB4000000);
+        graphics.fill(panelX - 2, panelY - 2,
+                panelX + panelWidth + 2, bottom + 2, 0xFF10151F);
+        graphics.fill(panelX, panelY, panelX + panelWidth, panelY + 30, 0xFF1E2939);
+        graphics.fill(panelX, panelY + 29, panelX + panelWidth,
+                panelY + 31, 0xFF4BBED9);
+        graphics.drawString(this.font, "PORTALFLIGHT  /  MODULES",
+                panelX + 12, panelY + 11, 0xFFEAF9FF);
+        graphics.drawString(this.font, CATEGORIES[category].toUpperCase()
+                        + "    |    " + matchesForCategory().size() + " modules",
+                panelX + 12, panelY + 122, 0xFF8FCADC);
+        graphics.drawString(this.font, "ESC to close  •  Right Ctrl opens",
+                panelX + 12, bottom - 17, 0xFFA5B9C9);
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
