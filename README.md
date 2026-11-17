@@ -12,6 +12,12 @@ Use **F12** or **Right Ctrl → Combat → Orbit Combat**. The module checks **c
 
 Once nearby, Orbit Combat circles aggressively at roughly **4.25 blocks** of radius, with up to **2.3 blocks per tick** of horizontal velocity. With a **mace in the main hand**, it repeatedly rises about **9 blocks** above the target, dives with gravity enabled, and only attempts a hit when descending, with at least **1.5 blocks of accumulated fall distance** and at least **99% attack charge**. With other weapons it maintains the aerial swoop and waits for the attack recharge. Attack attempts are capped at **6 blocks**, but **real damage, smash requirements, reach, collision and movement remain server-authoritative**. It cannot discover players whose entity positions the server never sends.
 
+## AutoTotem and AutoLeave
+
+Open **Right Ctrl → Utility** to enable **AutoTotem** or **AutoLeave** independently. AutoTotem looks for a Totem of Undying in your normal inventory or hotbar and uses the vanilla inventory offhand-swap action to equip it when no totem is equipped. It does not create totems, override a server's inventory, or run while another container is open.
+
+AutoLeave disconnects from the current server when your health is at or below the selected limit. The default is **1 heart (2 Minecraft HP)**; press **AutoLeave threshold** in the Utility screen to switch to **half a heart (1 HP)**, or back. Both modules are OFF until enabled. Disconnecting is not guaranteed to save you if a hit kills you in one blow or the server processes damage before the client sees your health update. The threshold is a session setting and resets to 1 heart when restarting the client.
+
 ## ClickGUI
 
 Press **Right Ctrl** to open the dark PortalFlight menu. Click **Movement**, **Render**, **Combat**, or **Utility**, then click a module to turn it ON/OFF. Press **Esc** to close. The menu controls the same toggles as the keyboard shortcuts and includes all actual implemented modules; Boat Fly Descend (X) remains a hold-to-use key in Minecraft's Key Binds screen. The interface is original and uses no NiceWurst code or modules.
