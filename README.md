@@ -6,6 +6,18 @@ Client-side Minecraft utility mod source project.
 
 These are original PortalFlight implementations inspired by common functionality in Anubis, Meteor and Krypton; no third-party client source code was copied. Entity ESP outlines only entities the server sends to your client. Storage ESP draws wireframe boxes around nearby client-loaded chests, trapped chests, barrels and Ender Chests (24-block horizontal / 12-block vertical scan); it is not guaranteed to render through walls with the current line render pass. No auto-combat or anti-cheat bypass added.
 
+## Additional Movement modules
+
+Open **Right Ctrl → Movement** and use **Next modules** to see the new movement toggles:
+
+- **AutoWalk:** moves forward automatically when no movement key is held
+- **AutoJump:** repeats jumps while moving and grounded; combines with HighJump
+- **HighJump:** increases the initial jump velocity when jumping
+- **FastFall:** accelerates downward while falling, except in water or lava
+- **WaterWalk:** applies gentle upward motion while swimming to stay near the surface
+
+All are optional and disabled by default. The movement batch avoids overriding PortalFlight's manual Fly, Coordinate Cruise, Orbit Combat, Noclip and Freecam. Server-side movement checks may correct or reject the client-proposed velocity. Use **Prev modules** to return to the original movement toggles. These are original, limited implementations rather than exact copies of Meteor Client's modules.
+
 ## Orbit Combat — aerial mace dives
 
 Use **F12** or **Right Ctrl → Combat → Orbit Combat**. The module checks **client-loaded players out to the Minecraft render-distance setting** (16 blocks per chunk, limited by server entity tracking). Upon acquiring a distant player, it makes **one position-packet snap attempt** to a point above and beside that player if the client knows the destination is clear, then pursues them at up to **10 blocks per tick** if still distant. The server may reject the snap or chase regardless of whether a dedicated anti-cheat is installed.
