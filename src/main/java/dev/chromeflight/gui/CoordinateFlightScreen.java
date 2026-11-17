@@ -120,7 +120,9 @@ public final class CoordinateFlightScreen extends Screen {
         graphics.drawString(this.font, "Z", left + 204, top + 37, 0xFFE0F0FF);
         graphics.drawString(this.font, "Custom speed (blocks/sec, max 1280):",
                 left + 12, top + 91, 0xFFE0F0FF);
-        graphics.drawString(this.font, feedback, left + 12, top + 277, 0xFFFFCC88);
+        String summary = feedback.isEmpty() ? PortalFlight.getLastTeleportStatus() : feedback;
+        String visibleSummary = this.font.plainSubstrByWidth(summary, 280);
+        graphics.drawString(this.font, visibleSummary, left + 12, top + 277, 0xFFFFCC88);
         graphics.drawString(this.font, "Destination: " + PortalFlight.getCoordinateFlightDestination(),
                 left + 12, top + 296, 0xFFA5BED4);
         super.render(graphics, mouseX, mouseY, partialTick);
