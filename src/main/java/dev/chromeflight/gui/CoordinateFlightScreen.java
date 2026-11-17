@@ -100,7 +100,10 @@ public final class CoordinateFlightScreen extends Screen {
                 feedback = "Invalid coordinates or not in a world.";
                 return;
             }
-            feedback = "Teleport packet sent. Server may reject it.";
+            feedback = "Teleport packet sent. Checking position...";
+            // Closing the GUI immediately reveals whether the client moved.
+            // PortalFlight reports a follow-up status after 2 seconds.
+            if (minecraft != null) minecraft.setScreen(null);
         } catch (NumberFormatException exception) {
             feedback = "Enter valid numeric X, Y and Z coordinates.";
         }
