@@ -13,19 +13,20 @@ import net.minecraft.network.chat.Component;
 public final class PortalFlightMenuScreen extends Screen {
     private static final String[] CATEGORIES = {"Movement", "Render", "Combat", "Utility"};
     private static final String[][] MODULE_IDS = {
-        {"fly", "speed", "boat", "swim", "noclip", "sprint"},
+        {"fly", "speed", "boat", "swim", "noclip", "sprint", "autowalk", "autojump", "highjump", "fastfall", "waterwalk"},
         {"freecam", "players", "mobs", "tracers", "storage"},
         {"orbit"},
         {"nofall", "hunger", "privacy", "portal", "autototem", "autoleave"}
     };
     private static final String[][] MODULE_NAMES = {
-        {"Fly", "Speed", "Boat Fly", "Swim Boost", "Noclip", "Auto Sprint"},
+        {"Fly", "Speed", "Boat Fly", "Swim Boost", "Noclip", "Auto Sprint", "AutoWalk", "AutoJump", "HighJump", "FastFall", "WaterWalk"},
         {"Freecam", "Player ESP", "Mob ESP", "ESP Tracers", "Storage ESP"},
         {"Orbit Combat"},
         {"No Fall", "Hunger Saver", "Spectator Privacy", "Portal Locator", "AutoTotem", "AutoLeave"}
     };
 
     private int category;
+    private int movementPage;
     private int panelX;
     private int panelY;
     private int panelWidth;
@@ -35,8 +36,13 @@ public final class PortalFlightMenuScreen extends Screen {
     }
 
     private PortalFlightMenuScreen(int selectedCategory) {
+        this(selectedCategory, 0);
+    }
+
+    private PortalFlightMenuScreen(int selectedCategory, int selectedPage) {
         super(Component.literal("PortalFlight ClickGUI"));
         this.category = selectedCategory;
+        this.movementPage = selectedPage;
     }
 
     @Override
@@ -57,6 +63,19 @@ public final class PortalFlightMenuScreen extends Screen {
         }
 
         if (category == 0) {
+            Button previousPage = Button.builder(Component.literal("Prev modules"), btn -> {
+                if (this.minecraft != null)
+                    this.minecraft.setScreen(new PortalFlightMenuScreen(0, 0));
+            }).bounds(panelX + 10, panelY + 162, (inner - 8) / 2, 21).build();
+            previousPage.active = movementPage > 0;
+            addRenderableWidget(previousPage);
+            Button nextPage = Button.builder(Component.literal("Next modules"), btn -> {
+                if (this.minecraft != null)
+                    this.minecraft.setScreen(new PortalFlightMenuScreen(0, 1));
+            }).bounds(panelX + 18 + (inner - 8) / 2, panelY + 162,
+                    (inner - 8) / 2, 21).build();
+            nextPage.active = movementPage == 0;
+            addRenderableWidget(nextPage);
             addRenderableWidget(Button.builder(Component.literal("Coordinate Flight Settings - Speed / XYZ"), btn -> {
                 if (this.minecraft != null) this.minecraft.setScreen(new CoordinateFlightScreen());
             }).bounds(panelX + 10, panelY + 191, inner, 22).build());
@@ -81,11 +100,14 @@ public final class PortalFlightMenuScreen extends Screen {
         String[] ids = MODULE_IDS[category];
         String[] labels = MODULE_NAMES[category];
         int buttonWidth = (inner - 8) / 2;
-        for (int i = 0; i < ids.length; i++) {
+        int pageStart = category == 0 ? movementPage * 6 : 0;
+        int pageEnd = category == 0 ? Math.min(pageStart + 6, ids.length) : ids.length;
+        for (int i = pageStart; i < pageEnd; i++) {
             final String id = ids[i];
             final String label = labels[i];
-            int col = i % 2;
-            int row = i / 2;
+            int indexOnPage = i - pageStart;
+            int col = indexOnPage % 2;
+            int row = indexOnPage / 2;
             int x = panelX + 10 + col * (buttonWidth + 8);
             int y = panelY + 72 + row * 29;
             addRenderableWidget(Button.builder(moduleLabel(id, label), btn -> {
