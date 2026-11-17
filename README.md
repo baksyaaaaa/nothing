@@ -18,11 +18,11 @@ Open **Right Ctrl → Movement** and use **Next modules** to see the new movemen
 
 All are optional and disabled by default. The movement batch avoids overriding PortalFlight's manual Fly, Coordinate Cruise, Orbit Combat, Noclip and Freecam. Server-side movement checks may correct or reject the client-proposed velocity. Use **Prev modules** to return to the original movement toggles. These are original, limited implementations rather than exact copies of Meteor Client's modules.
 
-## Orbit Combat — aerial mace dives
+## Orbit Combat — smoothed aerial mace dives
 
-Use **F12** or **Right Ctrl → Combat → Orbit Combat**. The module checks **client-loaded players out to the Minecraft render-distance setting** (16 blocks per chunk, limited by server entity tracking). Upon acquiring a distant player, it makes **one position-packet snap attempt** to a point above and beside that player if the client knows the destination is clear, then pursues them at up to **10 blocks per tick** if still distant. The server may reject the snap or chase regardless of whether a dedicated anti-cheat is installed.
+Use **F12** or **Right Ctrl → Combat → Orbit Combat**. It detects client-loaded players within your configured render distance, limited by server entity tracking. When acquiring a target, it **approaches smoothly instead of attempting a teleport**. The pursuit speed is capped at roughly **2.4 blocks/tick** and fades into an orbit around **4.25 blocks** away.
 
-Once nearby, Orbit Combat circles aggressively at roughly **4.25 blocks** of radius, with up to **2.3 blocks per tick** of horizontal velocity. With a **mace in the main hand**, it repeatedly rises about **9 blocks** above the target, dives with gravity enabled, and only attempts a hit when descending, with at least **1.5 blocks of accumulated fall distance** and at least **99% attack charge**. With other weapons it maintains the aerial swoop and waits for the attack recharge. Attack attempts are capped at **6 blocks**, but **real damage, smash requirements, reach, collision and movement remain server-authoritative**. It cannot discover players whose entity positions the server never sends.
+Movement and camera turning are acceleration- and rotation-limited to avoid rapid snapping and direction changes. Orbit speed is slower and more stable than the original aggressive setting. With a **mace in the main hand**, it still rises about **9 blocks** above the target, dives with gravity enabled, and attacks only when the weapon is nearly fully charged, descending, and carrying enough fall distance. Other weapons also wait for attack charge. Attacks beyond server-accepted reach may fail, and the server can correct movement even if no dedicated anti-cheat is installed.
 
 ## AutoTotem and AutoLeave
 
