@@ -68,7 +68,7 @@ Open **Right Ctrl → Movement → Coordinate Flight Settings** (or Utility → 
 
 Open **Right Ctrl → Utility → Coordinate Flight - Fly to XYZ**. Enter destination coordinates and click **Fly to Coordinates**. PortalFlight follows three phases: (1) ascend to **Y=200** (or stay higher if already above it or the destination is higher), (2) fly horizontally toward the target X/Z at a configurable maximum speed (default 320 blocks/second; enter any positive custom speed up to 1280 blocks/second in **Right Ctrl → Movement → Coordinate Flight Settings**, saved to `config/portalflight.properties`) of client-predicted movement, then (3) descend or ascend to the target Y. The mode slows near waypoints and stops on arrival or after persistent lack of movement. **STOP Flight** cancels it.
 
-This does not teleport, bypass server movement rules, or guarantee a clear path. It can collide with obstacles and multiplayer servers may rubber-band, block or reject the movement. Canceling at a high altitude can result in a fall.
+During cruise (including automatic fallback after a failed TP attempt), the client temporarily disables local block collision to attempt phasing through obstacles. Collision is restored when flight stops, arrives, or is canceled. **This does not bypass server collision or movement validation**: on multiplayer servers the player may still be blocked or corrected. Canceling at a high altitude or inside a wall can result in a fall or suffocation.
 
 ## Spectator detection limitations
 
