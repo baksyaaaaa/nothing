@@ -92,7 +92,11 @@ Open **Right Ctrl → Movement → Fly to Player** to see online player names fr
 
 ## Teleport to XYZ (experimental)
 
-Open **Right Ctrl → Movement → Coordinate Flight Settings** (or Utility → Coordinate Flight), enter X/Y/Z, and press **TP to Coordinates (Instant Attempt)** instead of **Fly to Coordinates**. This immediately sends a position packet requesting those coordinates, without following the climb/cruise/descent route. The client moves there optimistically, but the server can reject the position and rubber-band you. After about two seconds, PortalFlight reports whether the client is near the requested destination. If the attempt fails, it does not automatically start cruise flight. This does not bypass server movement validation; no OP permissions or /tp commands are used. Coordinates are validated to Minecraft's world border range and reasonable vertical bounds.
+Open **Right Ctrl → Movement → Coordinate Flight Settings** (or Utility → Coordinate Flight), enter X/Y/Z, and press **TP to Coordinates (Instant Attempt)** instead of **Fly to Coordinates**. This sends Meteor-style on-ground status packets and a final XYZ position packet requesting those coordinates, without following the climb/cruise/descent route. The client moves there optimistically, but the server can reject the position and rubber-band you. After about two seconds, PortalFlight reports whether the client is near the requested destination. If the attempt fails, it does not automatically start cruise flight. This does not bypass server movement validation; no OP permissions or /tp commands are used. Coordinates are validated to Minecraft's world border range and reasonable vertical bounds.
+
+## Meteor-style TP to Coordinates
+
+**Right Ctrl → Movement → Coordinate Flight / TP Settings → TP to Coordinates** now uses the Meteor ClickTP-style movement packet sequence for the entered **X/Y/Z** (instead of requiring a clicked block). It sends up to 19 `StatusOnly(true, true)` packets based on the distance (approximately one per 10 blocks, minus the final packet); for journeys requiring more than 19 status packets it sends none, matching Meteor's behavior. The final movement packet is `Pos(x, y, z, true, true)`. The existing button and typed-coordinate input are unchanged. All original downward-drop, falling, collision and landing-area safety checks still run before any packet is sent. There is **no automatic flight fallback**. Packet acceptance and damage remain server-controlled; even on-ground flags do not ensure zero fall damage.
 
 ## Teleport diagnostics
 
