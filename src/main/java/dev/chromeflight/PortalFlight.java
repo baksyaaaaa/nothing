@@ -53,6 +53,8 @@ public final class PortalFlight implements ClientModInitializer {
     private static double coordinateFlightCruiseY;
     private static double coordinateFlightMaxSpeed = 16.0;
     private static boolean clickTpWasPressed;
+    private static Vec3 pendingTeleportDestination;
+    private static int pendingTeleportCheckTicks;
     private static final double CLICK_TP_RANGE = 200.0;
     // Fly to Player has a separate extreme client-side speed (50,000 blocks/second).
     private static final double PLAYER_TRAVEL_SPEED_PER_TICK = 2500.0;
@@ -242,6 +244,8 @@ public final class PortalFlight implements ClientModInitializer {
                 nearbyStorage.clear(); lastStorageScanOrigin = null; storageWorldKey = "";
                 lastSeenPlayerPositions.clear(); lastSeenWorldKey = "";
                 clickTpWasPressed = false;
+                pendingTeleportDestination = null;
+                pendingTeleportCheckTicks = 0;
                 return;
             }
             // Right-click edge detection prevents repeated position packets while held.
@@ -252,6 +256,16 @@ public final class PortalFlight implements ClientModInitializer {
                 attemptClickTeleport(client, player);
             }
             clickTpWasPressed = clickTpPressed;
+            // A movement packet being sent does not prove the server accepted it.
+            // Re-check the actual local position after the next network updates.
+            if (pendingTeleportDestination != null && --pendingTeleportCheckTicks <= 0) {
+                double error = player.position().distanceTo(pendingTeleportDestination);
+                message(client, error < 3.0
+                        ? "TP: still at destination after 2s (server acceptance not guaranteed)"
+                        : "TP unsuccessful: " + (int)Math.round(error)
+                                + " blocks from destination after 2s");
+                pendingTeleportDestination = null;
+            }
             if (noclip) {
                 player.noPhysics = true;
                 player.setNoGravity(true);
@@ -828,6 +842,8 @@ public final class PortalFlight implements ClientModInitializer {
         mc.player.fallDistance = 0;
         mc.getConnection().send(new ServerboundMovePlayerPacket.PosRot(
                 x, y, z, mc.player.getYRot(), mc.player.getXRot(), false, false));
+        pendingTeleportDestination = new Vec3(x, y, z);
+        pendingTeleportCheckTicks = 40;
         return true;
     }
 
