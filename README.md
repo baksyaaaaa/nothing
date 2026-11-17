@@ -32,9 +32,18 @@ Open **Right Ctrl → Utility** to enable **AutoTotem** or **AutoLeave** indepen
 
 AutoLeave disconnects from the current server when your health is at or below the selected limit. The default is **1 heart (2 Minecraft HP)**; press **AutoLeave threshold** in the Utility screen to switch to **half a heart (1 HP)**, or back. Both modules are OFF until enabled. Disconnecting is not guaranteed to save you if a hit kills you in one blow or the server processes damage before the client sees your health update. The threshold is a session setting and resets to 1 heart when restarting the client.
 
-## ClickGUI
+## Meteor-inspired six-category ClickGUI
 
-Press **Right Ctrl** to open the dark PortalFlight menu. Click **Movement**, **Render**, **Combat**, or **Utility**, then click a module to turn it ON/OFF. Press **Esc** to close. The menu controls the same toggles as the keyboard shortcuts and includes all actual implemented modules; Boat Fly Descend (X) remains a hold-to-use key in Minecraft's Key Binds screen. The interface is original and uses no NiceWurst code or modules.
+Press **Right Ctrl** to open the redesigned PortalFlight module menu. The UI is an original dark, teal-accented implementation inspired by Meteor Client's **Combat, Movement, Render, Player, World, and Misc** category organization (not a copy of its assets or code). Modules have visible ON/OFF state, a text **Find** filter and **Prev/Next** pagination. Press **Find** after entering a search phrase. Shortcuts such as **F12** for Orbit Combat continue to work.
+
+- **Combat:** Orbit Combat, AutoTotem, AutoLeave (configurable 0.5/1-heart threshold)
+- **Movement:** Fly, Speed, Boat Fly, Swim Boost, Noclip, Auto Sprint, AutoWalk, AutoJump, HighJump, FastFall, WaterWalk, **AutoSneak, NoSlow, Elytra Boost**, and NoFall
+- **Render:** Freecam, Player ESP, Mob ESP, Tracers, Storage ESP
+- **Player:** Hunger Saver, Spectator Privacy
+- **World:** Portal Locator
+- **Misc:** Staff Watch screen
+
+The Movement screen retains **Coordinate Flight / TP Settings** and **Fly to Player** actions. Newly added implementations: **AutoSneak** holds sneaking while ordinary movement is available; **NoSlow** applies a modest horizontal speed correction when using an item; **Elytra Boost** adds gentle acceleration in the look direction while gliding forward. These are client-side behaviors, not guaranteed multiplayer bypasses. All three start OFF. This update does **not** include every Meteor Client module; only functioning PortalFlight modules are listed.
 
 ## Keybinds
 
