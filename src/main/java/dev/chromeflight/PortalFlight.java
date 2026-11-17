@@ -1061,7 +1061,7 @@ public final class PortalFlight implements ClientModInitializer {
                 || !Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)
                 || Math.abs(x) > 29999984 || Math.abs(z) > 29999984 || y < -2048 || y > 2048) return false;
         disableNoclip(mc);
-        fly = false;
+        fly = true; // Hold position in mid-air instead of requiring ground below.
         boatFly = false;
         orbitCombat = false;
         freecam = false;
@@ -1118,8 +1118,8 @@ public final class PortalFlight implements ClientModInitializer {
             coordinateTeleportError = "Unsafe TP while falling. Land safely first.";
             return false;
         }
-        // Only check local landing geometry when the destination chunk is
-        // loaded. An un-loaded remote location cannot be verified as safe.
+        // Never place the player inside blocks when collision data is available.
+        // A solid floor is not required: the destination may be in mid-air.
         BlockPos feet = BlockPos.containing(x, y, z);
         if (mc.level.hasChunkAt(feet)) {
             boolean occupied = !mc.level.getBlockState(feet)
@@ -1130,15 +1130,10 @@ public final class PortalFlight implements ClientModInitializer {
                 coordinateTeleportError = "Destination blocked (feet or head). TP not sent.";
                 return false;
             }
-            if (downwardDrop > 0.0 && mc.level.getBlockState(feet.below())
-                    .getCollisionShape(mc.level, feet.below()).isEmpty()) {
-                coordinateTeleportError = "No solid landing below destination. TP not sent.";
-                return false;
-            }
-        } else if (downwardDrop > 0.0) {
-            coordinateTeleportError = "Downward TP needs a loaded landing area. TP not sent.";
-            return false;
         }
+        // Open air is a valid destination: Flight starts after the position
+        // packet. Unloaded chunks cannot be collision-checked client-side;
+        // the server may still reject the teleport or correct a bad position.
 
         stopCoordinateFlight();
         disableNoclip(mc);
@@ -1168,6 +1163,7 @@ public final class PortalFlight implements ClientModInitializer {
         mc.getConnection().send(new ServerboundMovePlayerPacket.Pos(
                 x, y, z, true, true));
         mc.player.setPos(x, y, z);
+        mc.player.setNoGravity(true);
         // This local reset cannot disable any fall damage assessed by AVAS.
         mc.player.fallDistance = 0;
 
@@ -1177,7 +1173,7 @@ public final class PortalFlight implements ClientModInitializer {
         reportTeleport(mc, "Meteor-style XYZ TP sent (" + statusPackets
                 + " status packets + 1 position packet) to X=" + (int) Math.floor(x)
                 + " Y=" + (int) Math.floor(y) + " Z=" + (int) Math.floor(z)
-                + ". Checking for correction in ~2 seconds.");
+                + ". Fly enabled; checking for correction in ~2 seconds.");
         return true;
     }
 
