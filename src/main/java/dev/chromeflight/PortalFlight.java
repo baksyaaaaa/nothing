@@ -651,7 +651,7 @@ public final class PortalFlight implements ClientModInitializer {
                     // directly at the actual target once in close attack range.
                     Vec3 aimPoint = player.distanceToSqr(target) < 4.5 * 4.5
                             ? target.getEyePosition()
-                            : predictedTarget.add(0, target.getEyeHeight(), 0);
+                            : predictedTarget.add(0, target.getEyePosition().y - targetPosition.y, 0);
                     Vec3 aim = aimPoint.subtract(player.getEyePosition());
                     double flatAim = Math.hypot(aim.x, aim.z);
                     if (flatAim > 0.0001) {
