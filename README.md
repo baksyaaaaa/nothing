@@ -80,6 +80,10 @@ Open **Right Ctrl → Movement → Fly to Player** to see online player names fr
 
 Open **Right Ctrl → Movement → Coordinate Flight Settings** (or Utility → Coordinate Flight), enter X/Y/Z, and press **TP to Coordinates (Instant Attempt)** instead of **Fly to Coordinates**. This immediately sends a position packet requesting those coordinates, without following the climb/cruise/descent route. The client moves there optimistically, but the server can reject the position and rubber-band you. After about two seconds, PortalFlight reports whether the client is near the requested destination. If the attempt fails, it does not automatically start cruise flight. This does not bypass server movement validation; no OP permissions or /tp commands are used. Coordinates are validated to Minecraft's world border range and reasonable vertical bounds.
 
+## Downward TP safety
+
+**TP to Coordinates (Instant Attempt)** now refuses a direct teleport more than **2 blocks downward**. This is intentional: resetting client-side fall distance does not prevent the server from calculating lethal fall damage. It also refuses attempts when already falling more than 2 blocks, checks for clear space at the destination when loaded, and requires a solid landing below for a small downward TP. Unsafe requests show a reason in the coordinate screen and send **no** movement packet. **There is no automatic cruise fallback.** For larger descents, use normal, cautious movement or a server-supported teleport. No client-side safety check guarantees that a multiplayer server will not apply fall damage.
+
 ## Client-side homes
 
 PortalFlight registers local commands via Fabric, with **no server command or operator permission required**:
