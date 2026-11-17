@@ -77,9 +77,10 @@ public final class PortalFlight implements ClientModInitializer {
     private static UUID orbitLastTargetId;
     private static UUID combatTargetId;
     private static int combatOrbitDirection = 1;
-    private static final double ORBIT_SPEED = 0.78;
+    // Maximum orbit movement speed: 1280 blocks/sec at 20 ticks/sec.
+    private static final double ORBIT_SPEED = 64.0;
     private static final double ORBIT_ACCELERATION = 0.20;
-    private static final double ORBIT_MAX_HORIZONTAL_SPEED = 1.25;
+    private static final double ORBIT_MAX_HORIZONTAL_SPEED = 64.0;
     private static final double ORBIT_DIVE_HEIGHT = 6.0;
     private static final double ORBIT_DIVE_ASCEND_SPEED = 1.20;
     private static final double ORBIT_DIVE_DESCEND_SPEED = 1.65;
@@ -585,9 +586,13 @@ public final class PortalFlight implements ClientModInitializer {
                             (radius - desiredRadius) * 0.24));
                     // Orbit contribution fades naturally when far away.
                     double orbitBlend = Math.max(0.0, Math.min(1.0, 13.0 / Math.max(13.0, radius)));
+                    // 64 blocks/tick is the upper limit, not a forced speed:
+                    // at close range brake before overshooting the small orbit.
+                    // Target pursuit remains teleport-based, not cruise flight.
                     Vec3 horizontal = tangent.scale(ORBIT_SPEED * orbitBlend)
                             .add(inward.scale(correction));
-                    double horizontalLimit = ORBIT_MAX_HORIZONTAL_SPEED;
+                    double horizontalLimit = Math.min(ORBIT_MAX_HORIZONTAL_SPEED,
+                            Math.max(0.75, radius * 0.32));
                     if (horizontal.lengthSqr() > horizontalLimit * horizontalLimit) {
                         horizontal = horizontal.normalize().scale(horizontalLimit);
                     }
