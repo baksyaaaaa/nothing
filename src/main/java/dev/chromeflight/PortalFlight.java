@@ -262,16 +262,12 @@ public final class PortalFlight implements ClientModInitializer {
             // Re-check the actual local position after the next network updates.
             if (pendingTeleportDestination != null && --pendingTeleportCheckTicks <= 0) {
                 double error = player.position().distanceTo(pendingTeleportDestination);
-                Vec3 attemptedDestination = pendingTeleportDestination;
                 pendingTeleportDestination = null;
                 if (error < 3.0) {
                     message(client, "TP: near destination (server acceptance not guaranteed)");
-                } else if (startCoordinateFlight(attemptedDestination.x,
-                        attemptedDestination.y, attemptedDestination.z)) {
-                    message(client, "TP not accepted: switching to cruise flight ("
-                            + (int) Math.round(error) + " blocks remaining)");
                 } else {
-                    message(client, "TP rejected, and cruise could not start");
+                    message(client, "TP unsuccessful: " + (int) Math.round(error)
+                            + " blocks from destination; cruise not started");
                 }
             }
             if (noclip) {
