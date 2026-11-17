@@ -69,10 +69,11 @@ public final class PortalFlight implements ClientModInitializer {
     private static int orbitAttackCooldownTicks;
     private static UUID combatTargetId;
     private static int combatOrbitDirection = 1;
-    private static final double COMBAT_RANGE = 8.0;
-    private static final double ORBIT_SPEED = 0.40;
-    private static final double ORBIT_RADIUS = 2.65;
-    private static final double COMBAT_VERTICAL_SPEED = 0.27;
+    private static final double COMBAT_RANGE = 24.0;
+    private static final double ORBIT_ATTACK_ATTEMPT_RANGE = 6.0;
+    private static final double ORBIT_SPEED = 1.55;
+    private static final double ORBIT_RADIUS = 4.25;
+    private static final double COMBAT_VERTICAL_SPEED = 0.85;
     private static final double NOCLIP_SPEED = 0.55;
     private static int elytraPacketTicks;
     private static int storageTick;
@@ -412,36 +413,40 @@ public final class PortalFlight implements ClientModInitializer {
                     }
 
                     Vec3 delta = target.position().subtract(player.position());
-                    double radius = Math.sqrt(delta.x * delta.x + delta.z * delta.z);
-                    Vec3 horizontal = Vec3.ZERO;
-                    if (radius > 0.001) {
-                        Vec3 inward = new Vec3(delta.x / radius, 0, delta.z / radius);
-                        Vec3 tangent = new Vec3(-inward.z, 0, inward.x).scale(combatOrbitDirection);
-                        // Move around a moving target; close large gaps without teleporting.
-                        // Maintain a stable ring around the target; speed up radial
-                        // correction when we get pushed out of orbit by collisions.
-                        double correction = Math.max(-0.38, Math.min(0.62,
-                                (radius - ORBIT_RADIUS) * 0.32));
-                        horizontal = tangent.scale(ORBIT_SPEED).add(inward.scale(correction));
-                        if (horizontal.lengthSqr() > 0.8 * 0.8) {
-                            horizontal = horizontal.normalize().scale(0.8);
-                        }
+                    double radius = Math.hypot(delta.x, delta.z);
+                    // Circular motion tracks the target even while it moves.
+                    // When starting directly on top of it, pick a stable tangent.
+                    Vec3 inward = radius > 0.001
+                            ? new Vec3(delta.x / radius, 0, delta.z / radius)
+                            : new Vec3(-Math.sin(Math.toRadians(player.getYRot())),
+                                    0, Math.cos(Math.toRadians(player.getYRot())));
+                    Vec3 tangent = new Vec3(-inward.z, 0, inward.x)
+                            .scale(combatOrbitDirection);
+                    // Aggressive tangential speed with strong radial corrections.
+                    double correction = Math.max(-1.3, Math.min(2.2,
+                            (radius - ORBIT_RADIUS) * 0.60));
+                    Vec3 horizontal = tangent.scale(ORBIT_SPEED).add(inward.scale(correction));
+                    if (horizontal.lengthSqr() > 2.3 * 2.3) {
+                        horizontal = horizontal.normalize().scale(2.3);
                     }
-                    // A small descending cycle attempts legitimate falling critical hits.
-                    // This does not forge critical packets or override server damage rules.
-                    double cycle = Math.sin(combatAttackTicks * 0.35);
-                    double desiredHeight = target.getY() + 0.85 + cycle * 0.45;
+                    // Swoop up and down while circling rather than standing
+                    // still and repeatedly clicking.
+                    double cycle = Math.sin(combatAttackTicks * 0.19);
+                    double desiredHeight = target.getY() + 2.0 + cycle * 2.0;
                     double vertical = Math.max(-COMBAT_VERTICAL_SPEED,
-                            Math.min(COMBAT_VERTICAL_SPEED, (desiredHeight - player.getY()) * 0.40));
+                            Math.min(COMBAT_VERTICAL_SPEED,
+                                    (desiredHeight - player.getY()) * 0.55));
                     player.setNoGravity(true);
                     player.setDeltaMovement(horizontal.x, vertical, horizontal.z);
-                    player.fallDistance = vertical < 0 ? Math.max(player.fallDistance, 0.15f) : 0;
+                    player.fallDistance = 0;
 
-                    boolean inReach = player.distanceToSqr(target) <= 3.0 * 3.0;
-                    if (inReach && orbitAttackCooldownTicks == 0
+                    // Extra client-side reach is an ATTEMPT only: the server
+                    // still decides which attacks are legal and how much damage.
+                    boolean inReach = player.distanceToSqr(target)
+                            <= ORBIT_ATTACK_ATTEMPT_RANGE * ORBIT_ATTACK_ATTEMPT_RANGE;
+                    if (inReach && player.hasLineOfSight(target)
+                            && orbitAttackCooldownTicks == 0
                             && player.getAttackStrengthScale(0.0f) >= 0.95f) {
-                        // Respect the vanilla weapon cooldown so Orbit Combat
-                        // doesn't spam weak, uncharged hits every game tick.
                         client.gameMode.attack(player, target);
                         player.swing(InteractionHand.MAIN_HAND);
                         orbitAttackCooldownTicks = 5;
