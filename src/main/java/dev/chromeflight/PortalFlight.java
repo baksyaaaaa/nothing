@@ -69,7 +69,6 @@ public final class PortalFlight implements ClientModInitializer {
     private static int orbitAttackCooldownTicks;
     private static UUID combatTargetId;
     private static int combatOrbitDirection = 1;
-    private static final double COMBAT_RANGE = 24.0;
     private static final double ORBIT_ATTACK_ATTEMPT_RANGE = 6.0;
     private static final double ORBIT_SPEED = 1.55;
     private static final double ORBIT_RADIUS = 4.25;
@@ -377,7 +376,11 @@ public final class PortalFlight implements ClientModInitializer {
             if (orbitCombat && !noclip && !freecam && !fly && player.getVehicle() == null
                     && client.gameMode != null && client.screen == null) {
                 Player target = null;
-                double maxRangeSqr = COMBAT_RANGE * COMBAT_RANGE;
+                // Minecraft render distance is measured in chunks (16 blocks).
+                // The server may track/send player entities across a smaller area.
+                int renderChunks = client.options.renderDistance().get();
+                double maxRange = Math.max(2, renderChunks) * 16.0;
+                double maxRangeSqr = maxRange * maxRange;
                 if (combatTargetId != null) {
                     for (Player other : client.level.players()) {
                         if (other.getUUID().equals(combatTargetId) && other != player
