@@ -40,7 +40,7 @@ import org.lwjgl.glfw.GLFW;
 
 public final class PortalFlight implements ClientModInitializer {
     private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey, swimKey, boatDescendKey, playerEspKey, mobEspKey, storageFinderKey, autoSprintKey, tracerKey, orbitCombatKey, noclipKey, clickGuiKey;
-    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat, noclip, autoTotem, autoLeave, autoWalk, autoJump, highJump, fastFall, waterWalk;
+    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat, noclip, autoTotem, autoLeave, autoWalk, autoJump, highJump, fastFall, waterWalk, autoSneak, noSlow, elytraBoost;
     public static boolean freecam;
     public static Vec3 freecamPosition = Vec3.ZERO;
     public static Vec3 freecamPreviousPosition = Vec3.ZERO;
@@ -395,6 +395,24 @@ public final class PortalFlight implements ClientModInitializer {
             } else {
                 autoJumpWasGrounded = false;
                 autoJumpIntervalTicks = 0;
+            }
+            // Additional Meteor-style movement options. The normal movement
+            // modules avoid overriding teleport, orbit, flight and freecam.
+            if (regularMovement && autoSneak) {
+                player.setShiftKeyDown(true);
+            } else if (autoSneak && !client.options.keyShift.isDown()) {
+                player.setShiftKeyDown(false);
+            }
+            if (regularMovement && noSlow && player.isUsingItem()) {
+                Vec3 v = player.getDeltaMovement();
+                player.setDeltaMovement(v.x * 1.18, v.y, v.z * 1.18);
+            }
+            if (elytraBoost && player.isFallFlying() && !noclip && !freecam
+                    && !orbitCombat && coordinateDestination == null
+                    && client.options.keyUp.isDown()) {
+                Vec3 v = player.getDeltaMovement();
+                Vec3 look = player.getLookAngle();
+                player.setDeltaMovement(v.add(look.scale(0.08)));
             }
             // Record only positions actually sent to this client. The tab list
             // supplies names, not coordinates. Never invent hidden players' positions.
@@ -1173,6 +1191,9 @@ public final class PortalFlight implements ClientModInitializer {
             case "highjump" -> highJump;
             case "fastfall" -> fastFall;
             case "waterwalk" -> waterWalk;
+            case "autosneak" -> autoSneak;
+            case "noslow" -> noSlow;
+            case "elytraboost" -> elytraBoost;
             default -> false;
         };
     }
@@ -1230,6 +1251,9 @@ public final class PortalFlight implements ClientModInitializer {
             case "highjump" -> highJump = !highJump;
             case "fastfall" -> fastFall = !fastFall;
             case "waterwalk" -> waterWalk = !waterWalk;
+            case "autosneak" -> { autoSneak = !autoSneak; if (!autoSneak && mc.player != null && !mc.options.keyShift.isDown()) mc.player.setShiftKeyDown(false); }
+            case "noslow" -> noSlow = !noSlow;
+            case "elytraboost" -> elytraBoost = !elytraBoost;
         }
     }
 
