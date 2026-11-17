@@ -46,6 +46,9 @@ public final class PortalFlight implements ClientModInitializer {
     private static int coordinateFlightStage;
     private static double coordinateFlightCruiseY;
     private static double coordinateFlightMaxSpeed = 16.0;
+    // Fly to Player has a separate extreme client-side speed (50,000 blocks/second).
+    private static final double PLAYER_TRAVEL_SPEED_PER_TICK = 2500.0;
+    private static boolean highSpeedPlayerTravel;
     private static final double COORDINATE_FLIGHT_ARRIVAL_RADIUS = 0.8;
     private static final double FREECAM_SPEED = 0.75;
     private static final double FREECAM_ACCELERATION = 0.32;
@@ -216,7 +219,8 @@ public final class PortalFlight implements ClientModInitializer {
             if (player == null || client.level == null) {
                 spectatorNearby = false; spectatorWarning = ""; noclip = false;
                 staffWatchEvents.clear(); watchWorldKey = ""; lastObservedServerMessage = "";
-                coordinateDestination = null; coordinateFlightLastPosition = null; coordinateFlightStuckTicks = 0;
+                coordinateDestination = null; highSpeedPlayerTravel = false;
+                coordinateFlightLastPosition = null; coordinateFlightStuckTicks = 0;
                 elytraPacketTicks = 0;
                 nearbyStorage.clear(); lastStorageScanOrigin = null; storageWorldKey = "";
                 return;
@@ -498,8 +502,11 @@ public final class PortalFlight implements ClientModInitializer {
                 } else {
                     // Fast, smooth flight in three stages: up, horizontal, down.
                     // This is not teleportation; servers may reject/correct movement.
-                    double travelSpeed = Math.min(coordinateFlightMaxSpeed,
-                            Math.max(0.001, remaining * 0.22));
+                    double speedLimit = highSpeedPlayerTravel
+                            ? PLAYER_TRAVEL_SPEED_PER_TICK : coordinateFlightMaxSpeed;
+                    double travelSpeed = highSpeedPlayerTravel
+                            ? Math.min(speedLimit, remaining)
+                            : Math.min(speedLimit, Math.max(0.001, remaining * 0.22));
                     player.setNoGravity(true);
                     player.setDeltaMovement(remaining > 0.001
                             ? delta.normalize().scale(travelSpeed) : Vec3.ZERO);
@@ -731,6 +738,7 @@ public final class PortalFlight implements ClientModInitializer {
         freecam = false;
         speed = false;
         coordinateDestination = new Vec3(x, y, z);
+        highSpeedPlayerTravel = false;
         coordinateFlightCruiseY = Math.max(200.0, Math.max(mc.player.getY(), y));
         coordinateFlightStage = mc.player.getY() < coordinateFlightCruiseY - 0.8 ? 0 : 1;
         coordinateFlightStuckTicks = 0;
@@ -738,9 +746,19 @@ public final class PortalFlight implements ClientModInitializer {
         return true;
     }
 
+    /** Fly to a client-visible player's current coordinates at up to 50,000 blocks/s.
+     * This is movement, not teleportation; the server may reject it.
+     */
+    public static boolean startPlayerTravel(double x, double y, double z) {
+        if (!startCoordinateFlight(x, y, z)) return false;
+        highSpeedPlayerTravel = true;
+        return true;
+    }
+
     public static void stopCoordinateFlight() {
         if (coordinateDestination == null) return;
         coordinateDestination = null;
+        highSpeedPlayerTravel = false;
         coordinateFlightStage = 0;
         coordinateFlightStuckTicks = 0;
         coordinateFlightLastPosition = null;
