@@ -47,6 +47,7 @@ public final class PortalFlight implements ClientModInitializer {
     private static final Map<UUID, Vec3> lastSeenPlayerPositions = new HashMap<>();
     private static String lastSeenWorldKey = "";
     private static Vec3 coordinateDestination;
+    private static boolean cruisePhaseApplied;
     private static int coordinateFlightStuckTicks;
     private static Vec3 coordinateFlightLastPosition;
     private static int coordinateFlightStage;
@@ -243,6 +244,7 @@ public final class PortalFlight implements ClientModInitializer {
                 elytraPacketTicks = 0;
                 nearbyStorage.clear(); lastStorageScanOrigin = null; storageWorldKey = "";
                 lastSeenPlayerPositions.clear(); lastSeenWorldKey = "";
+                cruisePhaseApplied = false;
                 clickTpWasPressed = false;
                 pendingTeleportDestination = null;
                 pendingTeleportCheckTicks = 0;
@@ -537,6 +539,10 @@ public final class PortalFlight implements ClientModInitializer {
                 }
             }
             if (coordinateDestination != null) {
+                // Client-side collision phasing for both normal cruise and
+                // TP-to-XYZ cruise fallback. Server collision still applies.
+                player.noPhysics = true;
+                cruisePhaseApplied = true;
                 Vec3 currentPosition = player.position();
                 Vec3 waypoint;
                 String flightPhase;
@@ -874,13 +880,17 @@ public final class PortalFlight implements ClientModInitializer {
     }
 
     public static void stopCoordinateFlight() {
-        if (coordinateDestination == null) return;
+        if (coordinateDestination == null && !cruisePhaseApplied) return;
         coordinateDestination = null;
+        Minecraft mc = Minecraft.getInstance();
+        if (cruisePhaseApplied && mc.player != null && !noclip) {
+            mc.player.noPhysics = false;
+        }
+        cruisePhaseApplied = false;
         highSpeedPlayerTravel = false;
         coordinateFlightStage = 0;
         coordinateFlightStuckTicks = 0;
         coordinateFlightLastPosition = null;
-        Minecraft mc = Minecraft.getInstance();
         if (mc.player != null && !noclip && !orbitCombat) mc.player.setNoGravity(false);
     }
 
