@@ -81,7 +81,7 @@ public final class PlayerTravelScreen extends Screen {
         graphics.fill(left - 2, top - 2, left + 346, top + 285, 0xFF101622);
         graphics.fill(left, top, left + 344, top + 31, 0xFF202C41);
         graphics.drawString(font, "FLY TO PLAYER - UP TO 50K BLOCKS/S", left + 12, top + 11, 0xFF81D4FA);
-        graphics.drawString(font, "Only players whose positions are client-visible", left + 12, top + 38, 0xFFD0DEE9);
+        graphics.drawString(font, "Climb to Y=400, then fly to visible player coords", left + 12, top + 38, 0xFFD0DEE9);
         if (targets.isEmpty()) {
             graphics.drawString(font, "No nearby/loaded player positions known.", left + 12, top + 82, 0xFFFFCC88);
         }
