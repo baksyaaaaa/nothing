@@ -58,11 +58,12 @@ public final class PortalFlight implements ClientModInitializer {
     private static final double SWIM_BOOST_SPEED = 1.65;
     private static int scanTick;
     private static int combatAttackTicks;
+    private static int orbitAttackCooldownTicks;
     private static UUID combatTargetId;
     private static int combatOrbitDirection = 1;
     private static final double COMBAT_RANGE = 8.0;
-    private static final double ORBIT_SPEED = 0.32;
-    private static final double ORBIT_RADIUS = 2.4;
+    private static final double ORBIT_SPEED = 0.40;
+    private static final double ORBIT_RADIUS = 2.65;
     private static final double COMBAT_VERTICAL_SPEED = 0.27;
     private static final double NOCLIP_SPEED = 0.55;
     private static int elytraPacketTicks;
@@ -184,6 +185,7 @@ public final class PortalFlight implements ClientModInitializer {
             while (orbitCombatKey.consumeClick()) {
                 orbitCombat = !orbitCombat;
                 combatAttackTicks = 0;
+                orbitAttackCooldownTicks = 0;
                 combatTargetId = null;
                 if (!orbitCombat && client.player != null && !noclip) client.player.setNoGravity(false);
                 message(client, "Orbit Combat " + (orbitCombat ? "ON" : "OFF"));
@@ -363,6 +365,7 @@ public final class PortalFlight implements ClientModInitializer {
                 }
                 if (target != null) {
                     combatAttackTicks++;
+                    if (orbitAttackCooldownTicks > 0) orbitAttackCooldownTicks--;
                     // Aim at the opponent while following them in the air.
                     Vec3 aim = target.getEyePosition().subtract(player.getEyePosition());
                     double flatAim = Math.sqrt(aim.x * aim.x + aim.z * aim.z);
@@ -378,8 +381,14 @@ public final class PortalFlight implements ClientModInitializer {
                         Vec3 inward = new Vec3(delta.x / radius, 0, delta.z / radius);
                         Vec3 tangent = new Vec3(-inward.z, 0, inward.x).scale(combatOrbitDirection);
                         // Move around a moving target; close large gaps without teleporting.
-                        double correction = Math.max(-0.22, Math.min(0.45, (radius - ORBIT_RADIUS) * 0.24));
+                        // Maintain a stable ring around the target; speed up radial
+                        // correction when we get pushed out of orbit by collisions.
+                        double correction = Math.max(-0.38, Math.min(0.62,
+                                (radius - ORBIT_RADIUS) * 0.32));
                         horizontal = tangent.scale(ORBIT_SPEED).add(inward.scale(correction));
+                        if (horizontal.lengthSqr() > 0.8 * 0.8) {
+                            horizontal = horizontal.normalize().scale(0.8);
+                        }
                     }
                     // A small descending cycle attempts legitimate falling critical hits.
                     // This does not forge critical packets or override server damage rules.
@@ -392,16 +401,20 @@ public final class PortalFlight implements ClientModInitializer {
                     player.fallDistance = vertical < 0 ? Math.max(player.fallDistance, 0.15f) : 0;
 
                     boolean inReach = player.distanceToSqr(target) <= 3.0 * 3.0;
-                    if (inReach && player.hasLineOfSight(target)) {
-                        // No client-side weapon-charge wait: attempt one attack per game tick.
-                        // Servers may reduce damage for uncharged hits.
+                    if (inReach && player.hasLineOfSight(target)
+                            && orbitAttackCooldownTicks == 0
+                            && player.getAttackStrengthScale(0.0f) >= 0.95f) {
+                        // Respect the vanilla weapon cooldown so Orbit Combat
+                        // doesn't spam weak, uncharged hits every game tick.
                         client.gameMode.attack(player, target);
                         player.swing(InteractionHand.MAIN_HAND);
+                        orbitAttackCooldownTicks = 5;
                     }
                 } else {
                     // No nearby target: do not leave the player hovering indefinitely.
                     combatTargetId = null;
                     combatAttackTicks = 0;
+                    orbitAttackCooldownTicks = 0;
                     player.setNoGravity(false);
                 }
             } else if (!noclip && coordinateDestination == null && player.isNoGravity()) {
