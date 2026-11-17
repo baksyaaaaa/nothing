@@ -50,7 +50,7 @@ Minecraft clients generally cannot see other players' private commands. If a ser
 
 ## Fly to Player (no commands required)
 
-Open **Right Ctrl → Movement → Fly to Player** to choose from players whose positions the server has loaded and sent to the client. Selecting one starts the existing high-speed Coordinate Flight toward that player's position at selection time. It requires no server commands or operator privileges, but is **not instant teleportation**. The server may correct or reject movement. The client cannot discover coordinates of distant or hidden players that the server never sends to it, and the destination does not automatically update if a player moves.
+Open **Right Ctrl → Movement → Fly to Player** to choose from players whose positions the server has loaded and sent to the client. Selecting one starts the dedicated Fly to Player mode: climb to Y=400 (or higher if already above 400 or if the target is higher), travel toward the player's X/Z at a configured maximum of 50,000 blocks/second, then descend to their last known Y. This is a theoretical client-side speed, not a guaranteed server-accepted speed. It requires no server commands or operator privileges, but is **not instant teleportation**. The server may correct or reject movement. The client cannot discover coordinates of distant or hidden players that the server never sends to it, and the destination does not automatically update if a player moves.
 
 ## Coordinate Flight autopilot
 
