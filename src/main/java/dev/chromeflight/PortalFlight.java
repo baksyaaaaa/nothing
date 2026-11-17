@@ -1148,18 +1148,34 @@ public final class PortalFlight implements ClientModInitializer {
         freecam = false;
         speed = false;
         pendingTeleportOrigin = mc.player.position();
+        Vec3 destination = new Vec3(x, y, z);
+        double distance = pendingTeleportOrigin.distanceTo(destination);
+
+        // Meteor ClickTP-style packet sequence applied to typed XYZ instead
+        // of a clicked block. For distances up to 200 blocks send up to 19
+        // on-ground status packets, then a single position packet.
+        // Meteor sends no extra status packets when more than 19 would be
+        // needed. This is not a server teleport command or a guarantee.
+        int statusPackets = (int) Math.ceil(distance / 10.0) - 1;
+        if (statusPackets > 19) statusPackets = 0;
+        statusPackets = Math.max(0, statusPackets);
+
         mc.player.setDeltaMovement(Vec3.ZERO);
         mc.player.setNoGravity(false);
+        for (int i = 0; i < statusPackets; i++) {
+            mc.getConnection().send(new ServerboundMovePlayerPacket.StatusOnly(true, true));
+        }
+        mc.getConnection().send(new ServerboundMovePlayerPacket.Pos(
+                x, y, z, true, true));
         mc.player.setPos(x, y, z);
-        // Local fallDistance changes do not override the server's damage
-        // calculation; safety is enforced by refusing unsafe drops above.
+        // This local reset cannot disable any fall damage assessed by AVAS.
         mc.player.fallDistance = 0;
-        mc.getConnection().send(new ServerboundMovePlayerPacket.PosRot(
-                x, y, z, mc.player.getYRot(), mc.player.getXRot(), false, false));
-        pendingTeleportDestination = new Vec3(x, y, z);
+
+        pendingTeleportDestination = destination;
         pendingTeleportCheckTicks = 40;
         coordinateTeleportError = "";
-        reportTeleport(mc, "TP packet sent to X=" + (int) Math.floor(x)
+        reportTeleport(mc, "Meteor-style XYZ TP sent (" + statusPackets
+                + " status packets + 1 position packet) to X=" + (int) Math.floor(x)
                 + " Y=" + (int) Math.floor(y) + " Z=" + (int) Math.floor(z)
                 + ". Checking for correction in ~2 seconds.");
         return true;
