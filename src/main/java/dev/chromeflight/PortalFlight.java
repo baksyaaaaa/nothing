@@ -26,6 +26,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 import java.util.UUID;
@@ -40,7 +41,7 @@ import org.lwjgl.glfw.GLFW;
 
 public final class PortalFlight implements ClientModInitializer {
     private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey, swimKey, boatDescendKey, playerEspKey, mobEspKey, storageFinderKey, autoSprintKey, tracerKey, orbitCombatKey, noclipKey, clickGuiKey;
-    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat, noclip, autoTotem, autoLeave, autoWalk, autoJump, highJump, fastFall, waterWalk, autoSneak, noSlow, elytraBoost;
+    private static boolean orbitTargetMobs, speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat, noclip, autoTotem, autoLeave, autoWalk, autoJump, highJump, fastFall, waterWalk, autoSneak, noSlow, elytraBoost;
     public static boolean freecam;
     public static Vec3 freecamPosition = Vec3.ZERO;
     public static Vec3 freecamPreviousPosition = Vec3.ZERO;
@@ -206,9 +207,10 @@ public final class PortalFlight implements ClientModInitializer {
                     || client.player == null || client.level == null
                     || client.player.getVehicle() != null || client.screen != null
                     || combatTargetId == null || client.getConnection() == null) return;
-            for (Player other : client.level.players()) {
-                if (other != client.player && other.getUUID().equals(combatTargetId)
-                        && other.isAlive() && !other.isSpectator() && !other.isRemoved()) {
+            for (var entity : client.level.entitiesForRendering()) {
+                if (entity instanceof LivingEntity other
+                        && other.getUUID().equals(combatTargetId)
+                        && validOrbitTarget(other, client.player)) {
                     attemptOrbitSnap(client, client.player, other, other.position());
                     break;
                 }
@@ -535,16 +537,14 @@ public final class PortalFlight implements ClientModInitializer {
             // Server-side damage cooldowns and critical hit rules still apply.
             if (orbitCombat && !noclip && !freecam && !fly && player.getVehicle() == null
                     && client.gameMode != null && client.screen == null) {
-                Player target = null;
-                // No client-side detection radius. Only player entities already
-                // tracked and sent by the server can have known live positions.
+                LivingEntity target = null;
+                // Players are the default. Target Mobs switches targeting to
+                // loaded Mob entities so combat can be tested without PvP.
                 if (combatTargetId != null) {
-                    for (Player other : client.level.players()) {
-                        if (other.getUUID().equals(combatTargetId) && other != player
-                                && other.isAlive() && !other.isSpectator()
-                                && !other.isRemoved()) {
-                            // Keep the lock while the server continues sending this
-                            // entity, even when it moves beyond our acquire radius.
+                    for (var entity : client.level.entitiesForRendering()) {
+                        if (entity instanceof LivingEntity other
+                                && other.getUUID().equals(combatTargetId)
+                                && validOrbitTarget(other, player)) {
                             target = other;
                             break;
                         }
@@ -552,22 +552,24 @@ public final class PortalFlight implements ClientModInitializer {
                 }
                 if (target == null) {
                     double nearest = Double.POSITIVE_INFINITY;
-                    for (Player other : client.level.players()) {
-                        if (other == player || !other.isAlive() || other.isSpectator()) continue;
+                    for (var entity : client.level.entitiesForRendering()) {
+                        if (!(entity instanceof LivingEntity other)
+                                || !validOrbitTarget(other, player)) continue;
                         double distance = player.distanceToSqr(other);
-                        if (distance < nearest) { nearest = distance; target = other; }
+                        if (distance < nearest) {
+                            nearest = distance;
+                            target = other;
+                        }
                     }
                     UUID newId = target == null ? null : target.getUUID();
                     if (newId != null && !newId.equals(combatTargetId)) {
                         combatOrbitDirection = -combatOrbitDirection;
                         orbitDiving = false;
                         orbitDiveRecoveryTicks = 0;
-                        // Re-lock to this player on the next tick rather than
-                        // following them with ordinary movement.
                         orbitSmoothedVelocity = player.getDeltaMovement();
                         orbitLastTargetPosition = null;
                         orbitLastTargetId = null;
-                            }
+                    }
                     combatTargetId = newId;
                 }
                 if (target != null) {
@@ -1211,6 +1213,7 @@ public final class PortalFlight implements ClientModInitializer {
             case "tracers" -> espTracers;
             case "storage" -> storageFinder;
             case "orbit" -> orbitCombat;
+            case "orbitmobs" -> orbitTargetMobs;
             case "nofall" -> noFall;
             case "hunger" -> hungerSaver;
             case "privacy" -> privacyMode;
@@ -1258,6 +1261,14 @@ public final class PortalFlight implements ClientModInitializer {
                 nearbyStorage.clear();
                 lastStorageScanOrigin = null;
             }
+            case "orbitmobs" -> {
+                orbitTargetMobs = !orbitTargetMobs;
+                combatTargetId = null;
+                orbitLastTargetPosition = null;
+                orbitLastTargetId = null;
+                orbitDiving = false;
+                orbitSmoothedVelocity = Vec3.ZERO;
+            }
             case "orbit" -> {
                 orbitCombat = !orbitCombat;
                 combatAttackTicks = 0;
@@ -1300,8 +1311,14 @@ public final class PortalFlight implements ClientModInitializer {
      * One re-lock position attempt beside and above a client-known target.
      * The server remains authoritative and can reject the movement packet.
      */
+    private static boolean validOrbitTarget(LivingEntity target, LocalPlayer localPlayer) {
+        if (target == localPlayer || !target.isAlive() || target.isRemoved()) return false;
+        if (orbitTargetMobs) return target instanceof Mob;
+        return target instanceof Player other && !other.isSpectator();
+    }
+
     private static boolean attemptOrbitSnap(Minecraft client, LocalPlayer player,
-            Player target, Vec3 predictedTarget) {
+            LivingEntity target, Vec3 predictedTarget) {
         if (client.getConnection() == null || client.level == null
                 || target.isRemoved() || !target.isAlive()) return false;
         Vec3 lateral = player.position().subtract(target.position());
