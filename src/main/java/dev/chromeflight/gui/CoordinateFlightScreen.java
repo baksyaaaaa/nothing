@@ -97,7 +97,7 @@ public final class CoordinateFlightScreen extends Screen {
             double y = Double.parseDouble(yField.getValue().trim());
             double z = Double.parseDouble(zField.getValue().trim());
             if (!PortalFlight.attemptCoordinateTeleport(x, y, z)) {
-                feedback = "Invalid coordinates or not in a world.";
+                feedback = PortalFlight.getCoordinateTeleportError();
                 return;
             }
             feedback = "Teleport packet sent. Checking position...";
