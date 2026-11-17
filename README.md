@@ -6,9 +6,11 @@ Client-side Minecraft utility mod source project.
 
 These are original PortalFlight implementations inspired by common functionality in Anubis, Meteor and Krypton; no third-party client source code was copied. Entity ESP outlines only entities the server sends to your client. Storage ESP draws wireframe boxes around nearby client-loaded chests, trapped chests, barrels and Ender Chests (24-block horizontal / 12-block vertical scan); it is not guaranteed to render through walls with the current line render pass. No auto-combat or anti-cheat bypass added.
 
-## Orbit Combat
+## Orbit Combat — aerial mace dives
 
-Press **F12** or use **Right Ctrl → Combat → Orbit Combat**. The aggressive aerial mode acquires client-visible players up to your configured Minecraft **render distance** (16 blocks per chunk), subject to the server's entity-tracking range, flies in a roughly **4.25-block radius** at up to **2.3 blocks per tick** horizontally, and swoops vertically around the target. It attempts attacks within **6 blocks** with line of sight and nearly full weapon cooldown. The server still checks actual reach, attack damage, movement speed and physics; even without a dedicated anti-cheat, extra reach and fast flying may not work. It is not a guaranteed one-hit or remote-damage exploit.
+Use **F12** or **Right Ctrl → Combat → Orbit Combat**. The module checks **client-loaded players out to the Minecraft render-distance setting** (16 blocks per chunk, limited by server entity tracking). Upon acquiring a distant player, it makes **one position-packet snap attempt** to a point above and beside that player if the client knows the destination is clear, then pursues them at up to **10 blocks per tick** if still distant. The server may reject the snap or chase regardless of whether a dedicated anti-cheat is installed.
+
+Once nearby, Orbit Combat circles aggressively at roughly **4.25 blocks** of radius, with up to **2.3 blocks per tick** of horizontal velocity. With a **mace in the main hand**, it repeatedly rises about **9 blocks** above the target, dives with gravity enabled, and only attempts a hit when descending, with at least **1.5 blocks of accumulated fall distance** and at least **99% attack charge**. With other weapons it maintains the aerial swoop and waits for the attack recharge. Attack attempts are capped at **6 blocks**, but **real damage, smash requirements, reach, collision and movement remain server-authoritative**. It cannot discover players whose entity positions the server never sends.
 
 ## ClickGUI
 
