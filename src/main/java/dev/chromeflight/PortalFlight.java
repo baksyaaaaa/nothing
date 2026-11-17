@@ -33,13 +33,11 @@ import java.util.Deque;
 import java.util.Map;
 import java.util.HashMap;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.phys.HitResult;
-import net.minecraft.world.level.ClipContext;
 import org.lwjgl.glfw.GLFW;
 
 public final class PortalFlight implements ClientModInitializer {
-    private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey, swimKey, boatDescendKey, playerEspKey, mobEspKey, storageFinderKey, autoSprintKey, tracerKey, orbitCombatKey, noclipKey, clickGuiKey, clickTpKey;
-    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat, noclip, clickTp;
+    private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey, swimKey, boatDescendKey, playerEspKey, mobEspKey, storageFinderKey, autoSprintKey, tracerKey, orbitCombatKey, noclipKey, clickGuiKey;
+    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat, noclip
     public static boolean freecam;
     public static Vec3 freecamPosition = Vec3.ZERO;
     public static Vec3 freecamPreviousPosition = Vec3.ZERO;
@@ -53,10 +51,8 @@ public final class PortalFlight implements ClientModInitializer {
     private static int coordinateFlightStage;
     private static double coordinateFlightCruiseY;
     private static double coordinateFlightMaxSpeed = 16.0;
-    private static boolean clickTpWasPressed;
     private static Vec3 pendingTeleportDestination;
     private static int pendingTeleportCheckTicks;
-    private static final double CLICK_TP_RANGE = 200.0;
     // Fly to Player has a separate extreme client-side speed (50,000 blocks/second).
     private static final double PLAYER_TRAVEL_SPEED_PER_TICK = 2500.0;
     private static boolean highSpeedPlayerTravel;
@@ -123,7 +119,6 @@ public final class PortalFlight implements ClientModInitializer {
         orbitCombatKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.orbit_combat", GLFW.GLFW_KEY_F12, KeyMapping.Category.MISC));
         noclipKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.noclip", GLFW.GLFW_KEY_C, KeyMapping.Category.MISC));
         clickGuiKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.clickgui", GLFW.GLFW_KEY_RIGHT_CONTROL, KeyMapping.Category.MISC));
-        clickTpKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.click_tp", GLFW.GLFW_KEY_K, KeyMapping.Category.MISC));
         // Read only messages the server actually delivers to this client.
         // Other users' private slash commands are not exposed to ordinary clients.
         ClientReceiveMessageEvents.GAME.register((message, overlay) -> {
@@ -185,12 +180,6 @@ public final class PortalFlight implements ClientModInitializer {
             while (clickGuiKey.consumeClick()) {
                 if (client.screen == null) client.setScreen(new PortalFlightMenuScreen());
             }
-            while (clickTpKey.consumeClick()) {
-                clickTp = !clickTp;
-                clickTpWasPressed = true;
-                message(client, "ClickTP " + (clickTp ? "ON" : "OFF")
-                        + " (right click a block, server may reject)");
-            }
             while (noclipKey.consumeClick()) {
                 noclip = !noclip;
                 if (noclip) { fly = false; orbitCombat = false; freecam = false; }
@@ -245,19 +234,10 @@ public final class PortalFlight implements ClientModInitializer {
                 nearbyStorage.clear(); lastStorageScanOrigin = null; storageWorldKey = "";
                 lastSeenPlayerPositions.clear(); lastSeenWorldKey = "";
                 cruisePhaseApplied = false;
-                clickTpWasPressed = false;
                 pendingTeleportDestination = null;
                 pendingTeleportCheckTicks = 0;
                 return;
             }
-            // Right-click edge detection prevents repeated position packets while held.
-            // Do not activate while menus are open or when other camera modes are active.
-            boolean clickTpPressed = client.screen == null && client.options.keyUse.isDown();
-            if (clickTp && clickTpPressed && !clickTpWasPressed
-                    && !freecam && !noclip && player.getVehicle() == null) {
-                attemptClickTeleport(client, player);
-            }
-            clickTpWasPressed = clickTpPressed;
             // A movement packet being sent does not prove the server accepted it.
             // Re-check the actual local position after the next network updates.
             if (pendingTeleportDestination != null && --pendingTeleportCheckTicks <= 0) {
@@ -909,7 +889,6 @@ public final class PortalFlight implements ClientModInitializer {
             case "hunger" -> hungerSaver;
             case "privacy" -> privacyMode;
             case "portal" -> portalScan;
-            case "clicktp" -> clickTp;
             default -> false;
         };
     }
@@ -951,40 +930,7 @@ public final class PortalFlight implements ClientModInitializer {
             case "hunger" -> hungerSaver = !hungerSaver;
             case "privacy" -> privacyMode = !privacyMode;
             case "portal" -> { portalScan = !portalScan; nearestFrame = null; }
-            case "clicktp" -> { clickTp = !clickTp; clickTpWasPressed = true; }
         }
-    }
-
-    private static void attemptClickTeleport(Minecraft client, LocalPlayer player) {
-        if (client.getConnection() == null || client.level == null) return;
-        Vec3 eye = player.getEyePosition();
-        Vec3 end = eye.add(player.getLookAngle().scale(CLICK_TP_RANGE));
-        var hit = client.level.clip(new ClipContext(
-                eye, end, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player));
-        if (hit.getType() != HitResult.Type.BLOCK) {
-            message(client, "ClickTP: look at a block within 200 blocks");
-            return;
-        }
-        BlockPos destinationBlock = BlockPos.containing(hit.getLocation());
-        // Land on the upper surface of the targeted block, with headroom.
-        BlockPos feet = destinationBlock.above();
-        if (!client.level.hasChunkAt(feet)
-                || !client.level.getBlockState(feet).getCollisionShape(client.level, feet).isEmpty()
-                || !client.level.getBlockState(feet.above())
-                        .getCollisionShape(client.level, feet.above()).isEmpty()) {
-            message(client, "ClickTP: destination blocked or not loaded");
-            return;
-        }
-        double x = destinationBlock.getX() + 0.5;
-        double y = destinationBlock.getY() + 1.0;
-        double z = destinationBlock.getZ() + 0.5;
-        stopCoordinateFlight();
-        player.setDeltaMovement(Vec3.ZERO);
-        player.setPos(x, y, z);
-        player.fallDistance = 0;
-        client.getConnection().send(new ServerboundMovePlayerPacket.PosRot(
-                x, y, z, player.getYRot(), player.getXRot(), false, false));
-        message(client, "ClickTP attempted (server may correct position)");
     }
 
     private static void beginFreecam(LocalPlayer player) {
