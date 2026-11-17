@@ -57,6 +57,9 @@ public final class PortalFlight implements ClientModInitializer {
     private static Vec3 pendingTeleportDestination;
     private static int pendingTeleportCheckTicks;
     private static String coordinateTeleportError = "";
+    private static Vec3 pendingTeleportOrigin;
+    private static boolean pendingTeleportMovedAway;
+    private static String lastTeleportStatus = "No teleport attempted yet.";
     // Fly to Player has a separate extreme client-side speed (50,000 blocks/second).
     private static final double PLAYER_TRAVEL_SPEED_PER_TICK = 2500.0;
     private static boolean highSpeedPlayerTravel;
@@ -276,6 +279,8 @@ public final class PortalFlight implements ClientModInitializer {
                 lastSeenPlayerPositions.clear(); lastSeenWorldKey = "";
                 cruisePhaseApplied = false;
                 pendingTeleportDestination = null;
+                pendingTeleportOrigin = null;
+                pendingTeleportMovedAway = false;
                 pendingTeleportCheckTicks = 0;
                 autoTotemDelayTicks = 0;
                 autoJumpWasGrounded = false;
@@ -312,16 +317,29 @@ public final class PortalFlight implements ClientModInitializer {
                     break;
                 }
             }
-            // A movement packet being sent does not prove the server accepted it.
-            // Re-check the actual local position after the next network updates.
-            if (pendingTeleportDestination != null && --pendingTeleportCheckTicks <= 0) {
-                double error = player.position().distanceTo(pendingTeleportDestination);
-                pendingTeleportDestination = null;
-                if (error < 3.0) {
-                    message(client, "TP: near destination (server acceptance not guaranteed)");
-                } else {
-                    message(client, "TP unsuccessful: " + (int) Math.round(error)
-                            + " blocks from destination; cruise not started");
+            // A movement packet is a request, not server confirmation.
+            // Record whether the client was corrected away from the requested
+            // position. The actual server rejection reason is not in the packet.
+            if (pendingTeleportDestination != null) {
+                double distanceFromTarget = player.position().distanceTo(pendingTeleportDestination);
+                if (distanceFromTarget > 3.0) pendingTeleportMovedAway = true;
+                if (--pendingTeleportCheckTicks <= 0) {
+                    if (distanceFromTarget < 3.0) {
+                        reportTeleport(client, "TP near destination: server acceptance not guaranteed.");
+                    } else {
+                        double fromStart = pendingTeleportOrigin == null
+                                ? Double.POSITIVE_INFINITY
+                                : player.position().distanceTo(pendingTeleportOrigin);
+                        String detail = fromStart < 8.0
+                                ? "Returned near starting position: likely server correction."
+                                : "Player is not at destination: server correction or movement after TP.";
+                        reportTeleport(client, "TP failed (" + (int) Math.round(distanceFromTarget)
+                                + " blocks from target). " + detail
+                                + " Server did not provide an exact reason. No cruise fallback.");
+                    }
+                    pendingTeleportDestination = null;
+                    pendingTeleportOrigin = null;
+                    pendingTeleportMovedAway = false;
                 }
             }
             if (noclip) {
@@ -1068,6 +1086,19 @@ public final class PortalFlight implements ClientModInitializer {
         return coordinateTeleportError;
     }
 
+    public static String getLastTeleportStatus() {
+        return lastTeleportStatus;
+    }
+
+    private static void reportTeleport(Minecraft mc, String status) {
+        lastTeleportStatus = status;
+        if (mc.player != null) {
+            // Chat is persistent; action-bar-only messages were easy to miss.
+            mc.player.displayClientMessage(
+                    Component.literal("§b[PortalFlight TP] §f" + status), false);
+        }
+    }
+
     public static boolean attemptCoordinateTeleport(double x, double y, double z) {
         Minecraft mc = Minecraft.getInstance();
         coordinateTeleportError = "Invalid coordinates or not in a world.";
@@ -1118,6 +1149,8 @@ public final class PortalFlight implements ClientModInitializer {
         orbitCombat = false;
         freecam = false;
         speed = false;
+        pendingTeleportOrigin = mc.player.position();
+        pendingTeleportMovedAway = false;
         mc.player.setDeltaMovement(Vec3.ZERO);
         mc.player.setNoGravity(false);
         mc.player.setPos(x, y, z);
@@ -1129,6 +1162,9 @@ public final class PortalFlight implements ClientModInitializer {
         pendingTeleportDestination = new Vec3(x, y, z);
         pendingTeleportCheckTicks = 40;
         coordinateTeleportError = "";
+        reportTeleport(mc, "TP packet sent to X=" + (int) Math.floor(x)
+                + " Y=" + (int) Math.floor(y) + " Z=" + (int) Math.floor(z)
+                + ". Checking for correction in ~2 seconds.");
         return true;
     }
 
