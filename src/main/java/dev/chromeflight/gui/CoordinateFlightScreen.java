@@ -61,7 +61,7 @@ public final class CoordinateFlightScreen extends Screen {
                 .bounds(left + 8 + inner / 2 + 3, speedY, inner / 2 - 3, 18).build());
 
         int actionY = speedY + 23;
-        int actionGap = compact ? 20 : 29;
+        int actionGap = compact ? 17 : 29;
         addRenderableWidget(Button.builder(Component.literal("Fly to Coordinates"), button -> startFlight())
                 .bounds(left + 8, actionY, inner, 18).build());
         addRenderableWidget(Button.builder(Component.literal("TP to Coordinates (Instant Attempt)"),
@@ -147,11 +147,13 @@ public final class CoordinateFlightScreen extends Screen {
         graphics.drawString(this.font, "Speed (blocks/sec, max 1280)",
                 left + 8, speedLabelY, 0xFFE0F0FF);
         String summary = feedback.isEmpty() ? PortalFlight.getLastTeleportStatus() : feedback;
-        graphics.drawString(this.font, this.font.plainSubstrByWidth(summary, panelWidth - 16),
-                left + 8, feedbackY, 0xFFFFCC88);
-        graphics.drawString(this.font, this.font.plainSubstrByWidth(
-                        "Destination: " + PortalFlight.getCoordinateFlightDestination(), panelWidth - 16),
-                left + 8, destinationY, 0xFFA5BED4);
+        if (panelHeight >= 195) {
+            graphics.drawString(this.font, this.font.plainSubstrByWidth(summary, panelWidth - 16),
+                    left + 8, feedbackY, 0xFFFFCC88);
+            graphics.drawString(this.font, this.font.plainSubstrByWidth(
+                            "Destination: " + PortalFlight.getCoordinateFlightDestination(), panelWidth - 16),
+                    left + 8, destinationY, 0xFFA5BED4);
+        }
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
