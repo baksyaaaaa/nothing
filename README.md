@@ -6,6 +6,10 @@ Client-side Minecraft utility mod source project.
 
 These are original PortalFlight implementations inspired by common functionality in Anubis, Meteor and Krypton; no third-party client source code was copied. Entity ESP outlines only entities the server sends to your client. Storage ESP draws wireframe boxes around nearby client-loaded chests, trapped chests, barrels and Ender Chests (24-block horizontal / 12-block vertical scan); it is not guaranteed to render through walls with the current line render pass. No auto-combat or anti-cheat bypass added.
 
+## Orbit Combat
+
+**F12** or **Right Ctrl → Combat → Orbit Combat**. When a visible player is within eight blocks, the module tries to circle them around a roughly 2.65-block radius while facing them. It only attacks at close range, with line of sight, when the weapon cooldown has recovered (at least 95% attack strength). It no longer attempts an attack every game tick. Actual movement and damage are decided by the server, which may correct client movement or reject attacks.
+
 ## ClickGUI
 
 Press **Right Ctrl** to open the dark PortalFlight menu. Click **Movement**, **Render**, **Combat**, or **Utility**, then click a module to turn it ON/OFF. Press **Esc** to close. The menu controls the same toggles as the keyboard shortcuts and includes all actual implemented modules; Boat Fly Descend (X) remains a hold-to-use key in Minecraft's Key Binds screen. The interface is original and uses no NiceWurst code or modules.
