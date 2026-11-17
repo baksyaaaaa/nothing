@@ -6,6 +6,10 @@ Client-side Minecraft utility mod source project.
 
 These are original PortalFlight implementations inspired by common functionality in Anubis, Meteor and Krypton; no third-party client source code was copied. Entity ESP outlines only entities the server sends to your client. Storage ESP draws wireframe boxes around nearby client-loaded chests, trapped chests, barrels and Ender Chests (24-block horizontal / 12-block vertical scan); it is not guaranteed to render through walls with the current line render pass. No auto-combat or anti-cheat bypass added.
 
+## ClickTP (experimental)
+
+Press **Right Ctrl → Movement → ClickTP (R-Click)** or **K** to toggle ClickTP. With ClickTP on, aim at a block within **200 blocks** and **right-click** to send a player-position movement packet to the block's top surface. No /tp command or operator permission is used. ClickTP checks that the destination chunk is loaded and has two blocks of headroom. It makes one attempt per click, not a stream of teleport packets. This is a client request: **the server can reject or correct it**, especially across large distances. Right-click still performs ordinary item interactions, so switch the module off when not needed. This is not Fly to Player and cannot discover players' hidden coordinates.
+
 ## Orbit Combat
 
 **F12** or **Right Ctrl → Combat → Orbit Combat**. When a visible player is within eight blocks, the module tries to circle them around a roughly 2.65-block radius while facing them. It only attacks at close range, with line of sight, when the weapon cooldown has recovered (at least 95% attack strength). It no longer attempts an attack every game tick. Actual movement and damage are decided by the server, which may correct client movement or reject attacks.
