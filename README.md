@@ -12,7 +12,7 @@ Press **Right Ctrl → Movement → ClickTP (R-Click)** or **K** to toggle Click
 
 ## Orbit Combat
 
-Press **F12** or use **Right Ctrl → Combat → Orbit Combat**. The aggressive aerial mode acquires visible players within **24 blocks**, flies in a roughly **4.25-block radius** at up to **2.3 blocks per tick** horizontally, and swoops vertically around the target. It attempts attacks within **6 blocks** with line of sight and nearly full weapon cooldown. The server still checks actual reach, attack damage, movement speed and physics; even without a dedicated anti-cheat, extra reach and fast flying may not work. It is not a guaranteed one-hit or remote-damage exploit.
+Press **F12** or use **Right Ctrl → Combat → Orbit Combat**. The aggressive aerial mode acquires client-visible players up to your configured Minecraft **render distance** (16 blocks per chunk), subject to the server's entity-tracking range, flies in a roughly **4.25-block radius** at up to **2.3 blocks per tick** horizontally, and swoops vertically around the target. It attempts attacks within **6 blocks** with line of sight and nearly full weapon cooldown. The server still checks actual reach, attack damage, movement speed and physics; even without a dedicated anti-cheat, extra reach and fast flying may not work. It is not a guaranteed one-hit or remote-damage exploit.
 
 ## ClickGUI
 
