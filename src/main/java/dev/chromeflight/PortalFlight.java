@@ -24,6 +24,7 @@ import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
@@ -39,7 +40,7 @@ import org.lwjgl.glfw.GLFW;
 
 public final class PortalFlight implements ClientModInitializer {
     private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey, swimKey, boatDescendKey, playerEspKey, mobEspKey, storageFinderKey, autoSprintKey, tracerKey, orbitCombatKey, noclipKey, clickGuiKey;
-    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat, noclip;
+    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat, noclip, autoTotem, autoLeave;
     public static boolean freecam;
     public static Vec3 freecamPosition = Vec3.ZERO;
     public static Vec3 freecamPreviousPosition = Vec3.ZERO;
@@ -81,6 +82,9 @@ public final class PortalFlight implements ClientModInitializer {
     private static final double NOCLIP_SPEED = 0.55;
     private static int elytraPacketTicks;
     private static int storageTick;
+    private static int autoTotemDelayTicks;
+    // Minecraft health points: 1 HP = half a heart, 2 HP = one heart.
+    private static float autoLeaveThreshold = 2.0f;
     private static final List<BlockPos> nearbyStorage = new ArrayList<>();
     private static final int STORAGE_RADIUS = 24;
     private static final int STORAGE_VERTICAL_RADIUS = 12;
@@ -245,7 +249,38 @@ public final class PortalFlight implements ClientModInitializer {
                 cruisePhaseApplied = false;
                 pendingTeleportDestination = null;
                 pendingTeleportCheckTicks = 0;
+                autoTotemDelayTicks = 0;
                 return;
+            }
+            // AutoLeave is checked before combat and movement so that low-health
+            // disconnects are not delayed by other movement modules.
+            if (autoLeave && player.isAlive() && player.getHealth() > 0
+                    && player.getHealth() <= autoLeaveThreshold
+                    && client.getConnection() != null) {
+                client.getConnection().getConnection().disconnect(Component.literal(
+                        "PortalFlight AutoLeave: " + player.getHealth()
+                                + " HP (threshold " + autoLeaveThreshold + " HP)"));
+                return;
+            }
+            // AutoTotem uses a vanilla inventory SWAP with hotbar key 40 (offhand).
+            // Run only while the player inventory menu is active; don't interfere
+            // with chests, crafting screens or items carried on the cursor.
+            if (autoTotem && client.gameMode != null
+                    && player.containerMenu == player.inventoryMenu
+                    && player.inventoryMenu.getCarried().isEmpty()
+                    && !player.getOffhandItem().is(Items.TOTEM_OF_UNDYING)
+                    && --autoTotemDelayTicks <= 0) {
+                autoTotemDelayTicks = 10;
+                for (int inventorySlot = 0; inventorySlot < 36; inventorySlot++) {
+                    if (!player.getInventory().getItem(inventorySlot)
+                            .is(Items.TOTEM_OF_UNDYING)) continue;
+                    int menuSlot = inventorySlot < 9
+                            ? 36 + inventorySlot : inventorySlot;
+                    client.gameMode.handleInventoryMouseClick(
+                            player.inventoryMenu.containerId, menuSlot,
+                            40, ClickType.SWAP, player);
+                    break;
+                }
             }
             // A movement packet being sent does not prove the server accepted it.
             // Re-check the actual local position after the next network updates.
@@ -955,6 +990,8 @@ public final class PortalFlight implements ClientModInitializer {
             case "hunger" -> hungerSaver;
             case "privacy" -> privacyMode;
             case "portal" -> portalScan;
+            case "autototem" -> autoTotem;
+            case "autoleave" -> autoLeave;
             default -> false;
         };
     }
@@ -1002,7 +1039,17 @@ public final class PortalFlight implements ClientModInitializer {
             case "hunger" -> hungerSaver = !hungerSaver;
             case "privacy" -> privacyMode = !privacyMode;
             case "portal" -> { portalScan = !portalScan; nearestFrame = null; }
+            case "autototem" -> { autoTotem = !autoTotem; autoTotemDelayTicks = 0; }
+            case "autoleave" -> autoLeave = !autoLeave;
         }
+    }
+
+    public static float getAutoLeaveThreshold() {
+        return autoLeaveThreshold;
+    }
+
+    public static void toggleAutoLeaveThreshold() {
+        autoLeaveThreshold = autoLeaveThreshold == 2.0f ? 1.0f : 2.0f;
     }
 
     private static void attemptOrbitSnap(Minecraft client, LocalPlayer player, Player target) {
