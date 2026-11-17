@@ -18,6 +18,8 @@ Open **Right Ctrl → Movement** and use **Next modules** to see the new movemen
 
 All are optional and disabled by default. The movement batch avoids overriding PortalFlight's manual Fly, Coordinate Cruise, Orbit Combat, Noclip and Freecam. Server-side movement checks may correct or reject the client-proposed velocity. Use **Prev modules** to return to the original movement toggles. These are original, limited implementations rather than exact copies of Meteor Client's modules.
 
+**Flying-player hit reliability update:** Client-side attack attempts were already uncapped, so there was no higher reach number to set. Instead, mace re-lock now aims only about **3.4 blocks above** and **0.85 blocks beside** the target rather than 6 blocks above, reducing distance at the moment of an attack. If the mace is charged and the target is within 4.5 blocks, Orbit Combat can try an ordinary hit even without a complete smash dive, preventing endless missed attempts against flying opponents. Server attack-range checks, damage rules and teleport acceptance are unchanged. Actual longer reach cannot be granted by the client alone.
+
 ## Orbit Combat — fast charged mace dives and predictive aim
 
 **Test on mobs:** Open **Right Ctrl → Combat**, enable **Target Mobs** and **Orbit Combat** (or press **F12** to toggle Orbit Combat). With Target Mobs ON, the orbit locks onto the nearest currently client-loaded mob (such as a zombie, skeleton, or cow) and uses the same snap, tracking, orbit, and charged mace dive routines. Turning Target Mobs OFF restores player-only targeting; changing modes clears the old target lock. This is an exclusive target mode, not both players and mobs simultaneously. Attack range, movement and damage remain server-controlled.
