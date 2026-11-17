@@ -43,8 +43,8 @@ public final class PlayerTravelScreen extends Screen {
         if (minecraft != null && minecraft.getConnection() != null && minecraft.player != null) {
             for (var entry : minecraft.getConnection().getOnlinePlayers()) {
                 var profile = entry.getProfile();
-                if (!profile.getId().equals(minecraft.player.getUUID())) {
-                    targets.add(new Target(profile.getId(), profile.getName()));
+                if (!profile.id().equals(minecraft.player.getUUID())) {
+                    targets.add(new Target(profile.id(), profile.name()));
                 }
             }
         }
