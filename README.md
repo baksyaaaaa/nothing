@@ -12,7 +12,7 @@ Press **Right Ctrl → Movement → ClickTP (R-Click)** or **K** to toggle Click
 
 ## Orbit Combat
 
-**F12** or **Right Ctrl → Combat → Orbit Combat**. When a visible player is within eight blocks, the module tries to circle them around a roughly 2.65-block radius while facing them. It only attacks at close range, with line of sight, when the weapon cooldown has recovered (at least 95% attack strength). It no longer attempts an attack every game tick. Actual movement and damage are decided by the server, which may correct client movement or reject attacks.
+Press **F12** or use **Right Ctrl → Combat → Orbit Combat**. The aggressive aerial mode acquires visible players within **24 blocks**, flies in a roughly **4.25-block radius** at up to **2.3 blocks per tick** horizontally, and swoops vertically around the target. It attempts attacks within **6 blocks** with line of sight and nearly full weapon cooldown. The server still checks actual reach, attack damage, movement speed and physics; even without a dedicated anti-cheat, extra reach and fast flying may not work. It is not a guaranteed one-hit or remote-damage exploit.
 
 ## ClickGUI
 
