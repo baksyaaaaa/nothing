@@ -40,7 +40,7 @@ import org.lwjgl.glfw.GLFW;
 
 public final class PortalFlight implements ClientModInitializer {
     private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey, swimKey, boatDescendKey, playerEspKey, mobEspKey, storageFinderKey, autoSprintKey, tracerKey, orbitCombatKey, noclipKey, clickGuiKey;
-    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat, noclip, autoTotem, autoLeave;
+    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat, noclip, autoTotem, autoLeave, autoWalk, autoJump, highJump, fastFall, waterWalk;
     public static boolean freecam;
     public static Vec3 freecamPosition = Vec3.ZERO;
     public static Vec3 freecamPreviousPosition = Vec3.ZERO;
@@ -82,6 +82,8 @@ public final class PortalFlight implements ClientModInitializer {
     private static final double NOCLIP_SPEED = 0.55;
     private static int elytraPacketTicks;
     private static int storageTick;
+    private static boolean autoJumpWasGrounded;
+    private static int autoJumpIntervalTicks;
     private static int autoTotemDelayTicks;
     // Minecraft health points: 1 HP = half a heart, 2 HP = one heart.
     private static float autoLeaveThreshold = 2.0f;
@@ -250,6 +252,8 @@ public final class PortalFlight implements ClientModInitializer {
                 pendingTeleportDestination = null;
                 pendingTeleportCheckTicks = 0;
                 autoTotemDelayTicks = 0;
+                autoJumpWasGrounded = false;
+                autoJumpIntervalTicks = 0;
                 return;
             }
             // AutoLeave is checked before combat and movement so that low-health
@@ -309,6 +313,62 @@ public final class PortalFlight implements ClientModInitializer {
             }
             if (autoSprint && !noclip && !freecam && !player.isShiftKeyDown() && player.getVehicle() == null && client.options.keyUp.isDown()) {
                 player.setSprinting(true);
+            }
+            // Additional movement modules: never override cruise, noclip, orbit,
+            // freecam, manual fly, or vehicle movement. Server physics are final.
+            boolean regularMovement = !noclip && !freecam && !fly
+                    && !orbitCombat && coordinateDestination == null
+                    && player.getVehicle() == null && client.screen == null;
+            if (regularMovement) {
+                boolean grounded = player.onGround();
+                boolean movingForward = client.options.keyUp.isDown();
+                boolean movingBackward = client.options.keyDown.isDown();
+                boolean movingLeft = client.options.keyLeft.isDown();
+                boolean movingRight = client.options.keyRight.isDown();
+                boolean movingManually = movingForward || movingBackward || movingLeft || movingRight;
+                if (autoWalk && !movingManually && !player.isShiftKeyDown()) {
+                    double yaw = Math.toRadians(player.getYRot());
+                    Vec3 velocity = player.getDeltaMovement();
+                    player.setDeltaMovement(-Math.sin(yaw) * 0.23,
+                            velocity.y, Math.cos(yaw) * 0.23);
+                    player.setSprinting(true);
+                }
+                // Jump once on ground contact; do not auto-jump every air tick.
+                if (autoJump && grounded && !autoJumpWasGrounded
+                        && !client.options.keyShift.isDown()) {
+                    Vec3 v = player.getDeltaMovement();
+                    player.setDeltaMovement(v.x, highJump ? 0.85 : 0.42, v.z);
+                    autoJumpIntervalTicks = 3;
+                }
+                if (autoJumpIntervalTicks > 0) autoJumpIntervalTicks--;
+                if (autoJump && grounded && autoJumpIntervalTicks == 0
+                        && (autoWalk || movingManually)
+                        && !client.options.keyShift.isDown()) {
+                    Vec3 v = player.getDeltaMovement();
+                    player.setDeltaMovement(v.x, highJump ? 0.85 : 0.42, v.z);
+                    autoJumpIntervalTicks = 8;
+                }
+                if (highJump && grounded && client.options.keyJump.isDown()
+                        && !autoJump) {
+                    Vec3 v = player.getDeltaMovement();
+                    if (v.y <= 0.42) player.setDeltaMovement(v.x, 0.85, v.z);
+                }
+                if (fastFall && !grounded && !player.isInWater()
+                        && !player.isInLava() && !player.isFallFlying()
+                        && !client.options.keyJump.isDown()) {
+                    Vec3 v = player.getDeltaMovement();
+                    if (v.y < -0.08) player.setDeltaMovement(
+                            v.x, Math.max(-2.4, v.y - 0.12), v.z);
+                }
+                if (waterWalk && player.isInWater() && !player.isShiftKeyDown()
+                        && !player.isFallFlying()) {
+                    Vec3 v = player.getDeltaMovement();
+                    if (v.y < 0.12) player.setDeltaMovement(v.x, 0.12, v.z);
+                }
+                autoJumpWasGrounded = grounded;
+            } else {
+                autoJumpWasGrounded = false;
+                autoJumpIntervalTicks = 0;
             }
             // Record only positions actually sent to this client. The tab list
             // supplies names, not coordinates. Never invent hidden players' positions.
@@ -992,6 +1052,11 @@ public final class PortalFlight implements ClientModInitializer {
             case "portal" -> portalScan;
             case "autototem" -> autoTotem;
             case "autoleave" -> autoLeave;
+            case "autowalk" -> autoWalk;
+            case "autojump" -> autoJump;
+            case "highjump" -> highJump;
+            case "fastfall" -> fastFall;
+            case "waterwalk" -> waterWalk;
             default -> false;
         };
     }
@@ -1041,6 +1106,11 @@ public final class PortalFlight implements ClientModInitializer {
             case "portal" -> { portalScan = !portalScan; nearestFrame = null; }
             case "autototem" -> { autoTotem = !autoTotem; autoTotemDelayTicks = 0; }
             case "autoleave" -> autoLeave = !autoLeave;
+            case "autowalk" -> autoWalk = !autoWalk;
+            case "autojump" -> { autoJump = !autoJump; autoJumpWasGrounded = false; autoJumpIntervalTicks = 0; }
+            case "highjump" -> highJump = !highJump;
+            case "fastfall" -> fastFall = !fastFall;
+            case "waterwalk" -> waterWalk = !waterWalk;
         }
     }
 
