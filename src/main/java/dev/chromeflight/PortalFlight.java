@@ -803,6 +803,34 @@ public final class PortalFlight implements ClientModInitializer {
         return true;
     }
 
+    /**
+     * Attempts a direct coordinate teleport through the normal player movement
+     * protocol. No server command or guaranteed permission is involved: the
+     * server remains authoritative and may rubber-band the player.
+     */
+    public static boolean attemptCoordinateTeleport(double x, double y, double z) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.level == null || mc.getConnection() == null
+                || mc.player.getVehicle() != null
+                || !Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)
+                || Math.abs(x) > 29999984 || Math.abs(z) > 29999984
+                || y < -2048 || y > 2048) return false;
+        stopCoordinateFlight();
+        disableNoclip(mc);
+        fly = false;
+        boatFly = false;
+        orbitCombat = false;
+        freecam = false;
+        speed = false;
+        mc.player.setDeltaMovement(Vec3.ZERO);
+        mc.player.setNoGravity(false);
+        mc.player.setPos(x, y, z);
+        mc.player.fallDistance = 0;
+        mc.getConnection().send(new ServerboundMovePlayerPacket.PosRot(
+                x, y, z, mc.player.getYRot(), mc.player.getXRot(), false, false));
+        return true;
+    }
+
     /** Fly to a client-visible player's current coordinates at up to 50,000 blocks/s.
      * This is movement, not teleportation; the server may reject it.
      */
