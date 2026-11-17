@@ -20,7 +20,7 @@ All are optional and disabled by default. The movement batch avoids overriding P
 
 ## Orbit Combat — fast charged mace dives and predictive aim
 
-Use **F12** or **Right Ctrl → Combat → Orbit Combat**. Acquires **any currently client-loaded player entity**, with no additional client-side distance cap. Server entity tracking still limits which players and live positions are visible. On initial acquisition and whenever a locked target gets more than **9 blocks away**, it attempts a teleport-style position packet beside and above the target with an 8-tick re-lock interval, rather than ordinary approach flight. Re-lock uses bounded movement prediction; the server may reject or correct every position packet.
+Use **F12** or **Right Ctrl → Combat → Orbit Combat**. Acquires **any currently client-loaded player entity**, with no additional client-side distance cap. Server entity tracking still limits which players and live positions are visible. With Orbit Combat active, it attempts a teleport-style position packet beside and above the locked target at both the **start and end of each client tick** (up to 40 attempts per second at 20 TPS), rather than approaching by ordinary flight. The two phases are not evenly spaced 25 ms apart. Teleport attempts pause during the actual mace descent to preserve fall distance for smash attacks. Re-lock uses bounded movement prediction; the server may reject or correct every position packet.
 
 **Accuracy:** The orbit uses a bounded lead based on recent target displacement and rotates toward the predicted eye position with faster, still capped turning. Within 4.5 blocks, it aims at the current target eye position. Its preferred orbit radius is about 3.7 blocks.
 
