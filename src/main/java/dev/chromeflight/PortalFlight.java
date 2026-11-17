@@ -71,14 +71,17 @@ public final class PortalFlight implements ClientModInitializer {
     private static int orbitAttackCooldownTicks;
     private static boolean orbitDiving;
     private static int orbitDiveRecoveryTicks;
+    private static Vec3 orbitSmoothedVelocity = Vec3.ZERO;
     private static UUID combatTargetId;
     private static int combatOrbitDirection = 1;
     private static final double ORBIT_ATTACK_ATTEMPT_RANGE = 6.0;
-    private static final double ORBIT_SPEED = 1.55;
-    private static final double ORBIT_PURSUIT_SPEED = 10.0;
+    private static final double ORBIT_SPEED = 0.78;
+    private static final double ORBIT_ACCELERATION = 0.20;
+    private static final double ORBIT_MAX_HORIZONTAL_SPEED = 1.25;
+    private static final double ORBIT_PURSUIT_SPEED = 2.4;
     private static final double ORBIT_DIVE_HEIGHT = 9.0;
     private static final double ORBIT_RADIUS = 4.25;
-    private static final double COMBAT_VERTICAL_SPEED = 0.85;
+    private static final double COMBAT_VERTICAL_SPEED = 0.42;
     private static final double NOCLIP_SPEED = 0.55;
     private static int elytraPacketTicks;
     private static int storageTick;
@@ -209,6 +212,7 @@ public final class PortalFlight implements ClientModInitializer {
                 orbitDiving = false;
                 orbitDiveRecoveryTicks = 0;
                 combatTargetId = null;
+                orbitSmoothedVelocity = Vec3.ZERO;
                 if (!orbitCombat && client.player != null && !noclip) client.player.setNoGravity(false);
                 message(client, "Orbit Combat " + (orbitCombat ? "ON" : "OFF"));
             }
@@ -505,9 +509,9 @@ public final class PortalFlight implements ClientModInitializer {
                         combatOrbitDirection = -combatOrbitDirection;
                         orbitDiving = false;
                         orbitDiveRecoveryTicks = 0;
-                        // One snap attempt when acquiring a new tracked player.
-                        // The server can ignore/correct it. Pursuit works without it.
-                        attemptOrbitSnap(client, player, target);
+                        // Approach smoothly instead of forcibly teleporting the
+                        // camera/player on target acquisition.
+                        orbitSmoothedVelocity = player.getDeltaMovement();
                     }
                     combatTargetId = newId;
                 }
@@ -520,76 +524,80 @@ public final class PortalFlight implements ClientModInitializer {
                     double radius = Math.hypot(delta.x, delta.z);
                     boolean wieldingMace = player.getMainHandItem().is(Items.MACE);
 
-                    // Pursue client-known players anywhere within render distance,
-                    // then transition into high-speed circling when nearby.
-                    if (radius > 11.0) {
-                        orbitDiving = false;
-                        Vec3 chase = target.position().add(0, wieldingMace ? ORBIT_DIVE_HEIGHT : 2.5, 0)
-                                .subtract(player.position());
-                        double length = chase.length();
-                        player.setNoGravity(true);
-                        player.setDeltaMovement(length > 0.001
-                                ? chase.scale(Math.min(ORBIT_PURSUIT_SPEED, length) / length)
-                                : Vec3.ZERO);
-                        player.fallDistance = 0;
-                    } else {
-                        Vec3 inward = radius > 0.001
-                                ? new Vec3(delta.x / radius, 0, delta.z / radius)
-                                : new Vec3(-Math.sin(Math.toRadians(player.getYRot())),
-                                        0, Math.cos(Math.toRadians(player.getYRot())));
-                        Vec3 tangent = new Vec3(-inward.z, 0, inward.x)
-                                .scale(combatOrbitDirection);
-                        double desiredRadius = wieldingMace && orbitDiving ? 1.8 : ORBIT_RADIUS;
-                        double correction = Math.max(-1.3, Math.min(2.2,
-                                (radius - desiredRadius) * 0.60));
-                        Vec3 horizontal = tangent.scale(ORBIT_SPEED).add(inward.scale(correction));
-                        if (horizontal.lengthSqr() > 2.3 * 2.3) {
-                            horizontal = horizontal.normalize().scale(2.3);
-                        }
+                    // Continuously blend pursuit into orbit instead of switching
+                    // abruptly at a distance threshold.
+                    Vec3 inward = radius > 0.001
+                            ? new Vec3(delta.x / radius, 0, delta.z / radius)
+                            : new Vec3(-Math.sin(Math.toRadians(player.getYRot())),
+                                    0, Math.cos(Math.toRadians(player.getYRot())));
+                    Vec3 tangent = new Vec3(-inward.z, 0, inward.x)
+                            .scale(combatOrbitDirection);
+                    double desiredRadius = wieldingMace && orbitDiving ? 2.4 : ORBIT_RADIUS;
+                    double correction = Math.max(-0.55, Math.min(ORBIT_PURSUIT_SPEED,
+                            (radius - desiredRadius) * 0.24));
+                    // Orbit contribution fades naturally when far away.
+                    double orbitBlend = Math.max(0.0, Math.min(1.0, 13.0 / Math.max(13.0, radius)));
+                    Vec3 horizontal = tangent.scale(ORBIT_SPEED * orbitBlend)
+                            .add(inward.scale(correction));
+                    double horizontalLimit = radius > 12.0
+                            ? ORBIT_PURSUIT_SPEED : ORBIT_MAX_HORIZONTAL_SPEED;
+                    if (horizontal.lengthSqr() > horizontalLimit * horizontalLimit) {
+                        horizontal = horizontal.normalize().scale(horizontalLimit);
+                    }
 
-                        double vertical;
-                        if (wieldingMace) {
-                            // Climb high enough to build a smash, then descend with
-                            // gravity enabled so the game can accumulate fall distance.
-                            double heightAboveTarget = player.getY() - target.getY();
-                            if (!orbitDiving && orbitDiveRecoveryTicks == 0
-                                    && heightAboveTarget >= ORBIT_DIVE_HEIGHT - 0.5) {
-                                orbitDiving = true;
-                            }
-                            if (orbitDiving) {
-                                player.setNoGravity(false);
-                                vertical = -Math.min(1.5, Math.max(0.6,
-                                        (heightAboveTarget + 1.0) * 0.19));
-                                // Once below the target, restart the ascent.
-                                if (heightAboveTarget < -0.6 || player.onGround()) {
-                                    orbitDiving = false;
-                                    orbitDiveRecoveryTicks = 5;
-                                }
-                            } else {
-                                player.setNoGravity(true);
-                                vertical = Math.max(-0.2, Math.min(1.2,
-                                        (target.getY() + ORBIT_DIVE_HEIGHT - player.getY()) * 0.60));
-                                player.fallDistance = 0;
+                    double vertical;
+                    if (wieldingMace) {
+                        double heightAboveTarget = player.getY() - target.getY();
+                        if (!orbitDiving && orbitDiveRecoveryTicks == 0
+                                && radius < 6.5
+                                && heightAboveTarget >= ORBIT_DIVE_HEIGHT - 0.5) {
+                            orbitDiving = true;
+                        }
+                        if (orbitDiving) {
+                            player.setNoGravity(false);
+                            vertical = -Math.min(0.95, Math.max(0.30,
+                                    (heightAboveTarget + 1.0) * 0.13));
+                            if (heightAboveTarget < -0.6 || player.onGround()) {
+                                orbitDiving = false;
+                                orbitDiveRecoveryTicks = 8;
                             }
                         } else {
-                            orbitDiving = false;
                             player.setNoGravity(true);
-                            double cycle = Math.sin(combatAttackTicks * 0.19);
-                            double desiredHeight = target.getY() + 2.0 + cycle * 2.0;
-                            vertical = Math.max(-COMBAT_VERTICAL_SPEED,
-                                    Math.min(COMBAT_VERTICAL_SPEED,
-                                            (desiredHeight - player.getY()) * 0.55));
+                            vertical = Math.max(-0.2, Math.min(0.65,
+                                    (target.getY() + ORBIT_DIVE_HEIGHT - player.getY()) * 0.23));
                             player.fallDistance = 0;
                         }
-                        player.setDeltaMovement(horizontal.x, vertical, horizontal.z);
+                    } else {
+                        orbitDiving = false;
+                        player.setNoGravity(true);
+                        double cycle = Math.sin(combatAttackTicks * 0.12);
+                        double desiredHeight = target.getY() + 2.0 + cycle * 1.5;
+                        vertical = Math.max(-COMBAT_VERTICAL_SPEED,
+                                Math.min(COMBAT_VERTICAL_SPEED,
+                                        (desiredHeight - player.getY()) * 0.22));
+                        player.fallDistance = 0;
                     }
+                    // Limit per-tick acceleration to prevent violent direction
+                    // reversals while keeping continuous flight around targets.
+                    Vec3 wantedVelocity = new Vec3(horizontal.x, vertical, horizontal.z);
+                    Vec3 velocityDifference = wantedVelocity.subtract(orbitSmoothedVelocity);
+                    double accelerationLimit = orbitDiving ? 0.26 : ORBIT_ACCELERATION;
+                    if (velocityDifference.lengthSqr() > accelerationLimit * accelerationLimit) {
+                        velocityDifference = velocityDifference.normalize().scale(accelerationLimit);
+                    }
+                    orbitSmoothedVelocity = orbitSmoothedVelocity.add(velocityDifference);
+                    player.setDeltaMovement(orbitSmoothedVelocity);
 
                     // Aim at the actual target, not an empty space on the ring.
                     Vec3 aim = target.getEyePosition().subtract(player.getEyePosition());
                     double flatAim = Math.hypot(aim.x, aim.z);
                     if (flatAim > 0.0001) {
-                        player.setYRot((float) Math.toDegrees(Math.atan2(-aim.x, aim.z)));
-                        player.setXRot((float) -Math.toDegrees(Math.atan2(aim.y, flatAim)));
+                        float desiredYaw = (float) Math.toDegrees(Math.atan2(-aim.x, aim.z));
+                        float desiredPitch = (float) -Math.toDegrees(Math.atan2(aim.y, flatAim));
+                        float yawDifference = (desiredYaw - player.getYRot() + 540.0f) % 360.0f - 180.0f;
+                        float pitchDifference = desiredPitch - player.getXRot();
+                        player.setYRot(player.getYRot() + Math.max(-18.0f, Math.min(18.0f, yawDifference)));
+                        player.setXRot(player.getXRot() + Math.max(-12.0f, Math.min(12.0f, pitchDifference)));
                     }
 
                     // Mace only strikes during a charged, descending smash.
@@ -618,6 +626,7 @@ public final class PortalFlight implements ClientModInitializer {
                     orbitAttackCooldownTicks = 0;
                     orbitDiving = false;
                     orbitDiveRecoveryTicks = 0;
+                    orbitSmoothedVelocity = Vec3.ZERO;
                     player.setNoGravity(false);
                 }
             } else if (!noclip && coordinateDestination == null && player.isNoGravity()) {
@@ -1120,28 +1129,6 @@ public final class PortalFlight implements ClientModInitializer {
 
     public static void toggleAutoLeaveThreshold() {
         autoLeaveThreshold = autoLeaveThreshold == 2.0f ? 1.0f : 2.0f;
-    }
-
-    private static void attemptOrbitSnap(Minecraft client, LocalPlayer player, Player target) {
-        if (client.getConnection() == null || target.distanceToSqr(player) < 12.0 * 12.0) return;
-        // Snap above and to the side of the target to prepare a mace dive.
-        // Never claim that the server accepted this movement packet.
-        Vec3 offset = player.position().subtract(target.position());
-        Vec3 lateral = new Vec3(offset.x, 0, offset.z);
-        if (lateral.lengthSqr() < 0.01) lateral = new Vec3(1, 0, 0);
-        Vec3 destination = target.position().add(
-                lateral.normalize().scale(ORBIT_RADIUS)).add(0, ORBIT_DIVE_HEIGHT, 0);
-        BlockPos block = BlockPos.containing(destination);
-        if (!client.level.hasChunkAt(block)
-                || !client.level.getBlockState(block).getCollisionShape(client.level, block).isEmpty()
-                || !client.level.getBlockState(block.above())
-                        .getCollisionShape(client.level, block.above()).isEmpty()) return;
-        player.setPos(destination.x, destination.y, destination.z);
-        player.setDeltaMovement(Vec3.ZERO);
-        player.fallDistance = 0;
-        client.getConnection().send(new ServerboundMovePlayerPacket.PosRot(
-                destination.x, destination.y, destination.z,
-                player.getYRot(), player.getXRot(), false, false));
     }
 
     private static void beginFreecam(LocalPlayer player) {
