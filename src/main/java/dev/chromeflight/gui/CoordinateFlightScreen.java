@@ -23,7 +23,7 @@ public final class CoordinateFlightScreen extends Screen {
     @Override
     protected void init() {
         left = (this.width - 304) / 2;
-        top = Math.max(12, (this.height - 260) / 2);
+        top = Math.max(12, (this.height - 320) / 2);
         xField = coordinateField(left + 12, top + 50, "X");
         yField = coordinateField(left + 108, top + 50, "Y");
         zField = coordinateField(left + 204, top + 50, "Z");
@@ -43,13 +43,16 @@ public final class CoordinateFlightScreen extends Screen {
                 .bounds(left + 145, top + 104, 147, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Fly to Coordinates"), button -> startFlight())
                 .bounds(left + 12, top + 135, 280, 22).build());
+        addRenderableWidget(Button.builder(Component.literal("TP to Coordinates (Instant Attempt)"),
+                button -> teleportToCoordinates())
+                .bounds(left + 12, top + 164, 280, 22).build());
         addRenderableWidget(Button.builder(Component.literal("STOP Flight"), button -> {
             PortalFlight.stopCoordinateFlight();
             feedback = "Coordinate flight stopped.";
-        }).bounds(left + 12, top + 164, 280, 22).build());
+        }).bounds(left + 12, top + 193, 280, 22).build());
         addRenderableWidget(Button.builder(Component.literal("Back"), button -> {
             if (this.minecraft != null) this.minecraft.setScreen(new PortalFlightMenuScreen());
-        }).bounds(left + 12, top + 193, 280, 22).build());
+        }).bounds(left + 12, top + 222, 280, 22).build());
     }
 
     private EditBox coordinateField(int x, int y, String axis) {
@@ -88,10 +91,25 @@ public final class CoordinateFlightScreen extends Screen {
         }
     }
 
+    private void teleportToCoordinates() {
+        try {
+            double x = Double.parseDouble(xField.getValue().trim());
+            double y = Double.parseDouble(yField.getValue().trim());
+            double z = Double.parseDouble(zField.getValue().trim());
+            if (!PortalFlight.attemptCoordinateTeleport(x, y, z)) {
+                feedback = "Invalid coordinates or not in a world.";
+                return;
+            }
+            feedback = "Teleport packet sent. Server may reject it.";
+        } catch (NumberFormatException exception) {
+            feedback = "Enter valid numeric X, Y and Z coordinates.";
+        }
+    }
+
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         graphics.fill(0, 0, this.width, this.height, 0xAA000000);
-        graphics.fill(left - 2, top - 2, left + 306, top + 262, 0xFF101622);
+        graphics.fill(left - 2, top - 2, left + 306, top + 320, 0xFF101622);
         graphics.fill(left, top, left + 304, top + 30, 0xFF202C41);
         graphics.drawString(this.font, "COORDINATE FLIGHT", left + 12, top + 11, 0xFF81D4FA);
         graphics.drawString(this.font, "X", left + 12, top + 37, 0xFFE0F0FF);
@@ -99,9 +117,9 @@ public final class CoordinateFlightScreen extends Screen {
         graphics.drawString(this.font, "Z", left + 204, top + 37, 0xFFE0F0FF);
         graphics.drawString(this.font, "Custom speed (blocks/sec, max 1280):",
                 left + 12, top + 91, 0xFFE0F0FF);
-        graphics.drawString(this.font, feedback, left + 12, top + 226, 0xFFFFCC88);
+        graphics.drawString(this.font, feedback, left + 12, top + 277, 0xFFFFCC88);
         graphics.drawString(this.font, "Destination: " + PortalFlight.getCoordinateFlightDestination(),
-                left + 12, top + 242, 0xFFA5BED4);
+                left + 12, top + 296, 0xFFA5BED4);
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
