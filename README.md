@@ -18,11 +18,11 @@ Open **Right Ctrl → Movement** and use **Next modules** to see the new movemen
 
 All are optional and disabled by default. The movement batch avoids overriding PortalFlight's manual Fly, Coordinate Cruise, Orbit Combat, Noclip and Freecam. Server-side movement checks may correct or reject the client-proposed velocity. Use **Prev modules** to return to the original movement toggles. These are original, limited implementations rather than exact copies of Meteor Client's modules.
 
-## Orbit Combat — smoothed aerial mace dives
+## Orbit Combat — teleport re-lock and aerial mace dives
 
-Use **F12** or **Right Ctrl → Combat → Orbit Combat**. It detects client-loaded players within your configured render distance, limited by server entity tracking. When acquiring a target, it **approaches smoothly instead of attempting a teleport**. The pursuit speed is capped at roughly **2.4 blocks/tick** and fades into an orbit around **4.25 blocks** away.
+Use **F12** or **Right Ctrl → Combat → Orbit Combat**. Orbit Combat acquires client-loaded players within your configured render distance (subject to server entity tracking). It now uses **teleport-style position packets to re-lock near a target**, rather than flying toward them from a distance. It attempts a snap beside and above the player on acquisition or whenever the player is more than **9 blocks away in 3D**, with an **8-tick cooldown** between re-lock attempts. Each attempt uses a short lead based on the last two received player positions and checks destination collision where chunks are available; it does **not** reveal coordinates the server never sent.
 
-Movement and camera turning are acceleration- and rotation-limited to avoid rapid snapping and direction changes. Orbit speed is slower and more stable than the original aggressive setting. With a **mace in the main hand**, it still rises about **9 blocks** above the target, dives with gravity enabled, and attacks only when the weapon is nearly fully charged, descending, and carrying enough fall distance. Other weapons also wait for attack charge. Attacks beyond server-accepted reach may fail, and the server can correct movement even if no dedicated anti-cheat is installed.
+Once near a target, it uses smooth, acceleration-limited circling. With a **mace in the main hand**, it ascends about **9 blocks** and attempts a smash only during a charged downward dive with sufficient fall distance. The server remains authoritative: it can reject teleport packets, correct the player's position, or stop sending distant target entities. Re-lock cannot guarantee tracking a player whose position is no longer received, nor can it grant extra attack reach or damage.
 
 ## AutoTotem and AutoLeave
 
