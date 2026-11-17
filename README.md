@@ -60,6 +60,17 @@ Open **Right Ctrl → Movement → Fly to Player** to see online player names fr
 
 Open **Right Ctrl → Movement → Coordinate Flight Settings** (or Utility → Coordinate Flight), enter X/Y/Z, and press **TP to Coordinates (Instant Attempt)** instead of **Fly to Coordinates**. This immediately sends a position packet requesting those coordinates, without following the climb/cruise/descent route. The client moves there optimistically, but the server can reject the position and rubber-band you. After about two seconds, PortalFlight reports whether the client is near the requested destination. If the attempt fails, it does not automatically start cruise flight. This does not bypass server movement validation; no OP permissions or /tp commands are used. Coordinates are validated to Minecraft's world border range and reasonable vertical bounds.
 
+## Client-side homes
+
+PortalFlight registers local commands via Fabric, with **no server command or operator permission required**:
+
+- `/sethome` saves your current XYZ as `home`; `/sethome base` saves a named location
+- `/home` or `/home base` starts **Coordinate Flight cruise** toward a saved home (not an instant server teleport)
+- `/homes` lists saved home names for your current server and dimension
+- `/delhome` or `/delhome base` deletes a saved home
+
+Saved homes survive restarts in `config/portalflight-homes.properties` and are separated by server address and dimension. Home names use letters, digits, underscores or hyphens. Server plugins may register the same command names; client/server command conflicts depend on the command tree. Flight remains subject to server movement checks and inherits the current cruise phasing behavior.
+
 ## Coordinate Flight autopilot
 
 Open **Right Ctrl → Utility → Coordinate Flight - Fly to XYZ**. Enter destination coordinates and click **Fly to Coordinates**. PortalFlight follows three phases: (1) ascend to **Y=200** (or stay higher if already above it or the destination is higher), (2) fly horizontally toward the target X/Z at a configurable maximum speed (default 320 blocks/second; enter any positive custom speed up to 1280 blocks/second in **Right Ctrl → Movement → Coordinate Flight Settings**, saved to `config/portalflight.properties`) of client-predicted movement, then (3) descend or ascend to the target Y. The mode slows near waypoints and stops on arrival or after persistent lack of movement. **STOP Flight** cancels it.
