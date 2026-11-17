@@ -72,13 +72,17 @@ public final class PortalFlight implements ClientModInitializer {
     private static boolean orbitDiving;
     private static int orbitDiveRecoveryTicks;
     private static Vec3 orbitSmoothedVelocity = Vec3.ZERO;
+    private static Vec3 orbitLastTargetPosition;
+    private static UUID orbitLastTargetId;
+    private static int orbitSnapCooldownTicks;
     private static UUID combatTargetId;
     private static int combatOrbitDirection = 1;
     private static final double ORBIT_ATTACK_ATTEMPT_RANGE = 6.0;
     private static final double ORBIT_SPEED = 0.78;
     private static final double ORBIT_ACCELERATION = 0.20;
     private static final double ORBIT_MAX_HORIZONTAL_SPEED = 1.25;
-    private static final double ORBIT_PURSUIT_SPEED = 2.4;
+    private static final double ORBIT_RELOCK_DISTANCE = 9.0;
+    private static final int ORBIT_SNAP_INTERVAL_TICKS = 8;
     private static final double ORBIT_DIVE_HEIGHT = 9.0;
     private static final double ORBIT_RADIUS = 4.25;
     private static final double COMBAT_VERTICAL_SPEED = 0.42;
@@ -213,6 +217,9 @@ public final class PortalFlight implements ClientModInitializer {
                 orbitDiveRecoveryTicks = 0;
                 combatTargetId = null;
                 orbitSmoothedVelocity = Vec3.ZERO;
+                orbitLastTargetPosition = null;
+                orbitLastTargetId = null;
+                orbitSnapCooldownTicks = 0;
                 if (!orbitCombat && client.player != null && !noclip) client.player.setNoGravity(false);
                 message(client, "Orbit Combat " + (orbitCombat ? "ON" : "OFF"));
             }
@@ -491,7 +498,9 @@ public final class PortalFlight implements ClientModInitializer {
                     for (Player other : client.level.players()) {
                         if (other.getUUID().equals(combatTargetId) && other != player
                                 && other.isAlive() && !other.isSpectator()
-                                && player.distanceToSqr(other) <= maxRangeSqr) {
+                                && !other.isRemoved()) {
+                            // Keep the lock while the server continues sending this
+                            // entity, even when it moves beyond our acquire radius.
                             target = other;
                             break;
                         }
@@ -512,6 +521,9 @@ public final class PortalFlight implements ClientModInitializer {
                         // Approach smoothly instead of forcibly teleporting the
                         // camera/player on target acquisition.
                         orbitSmoothedVelocity = player.getDeltaMovement();
+                        orbitLastTargetPosition = null;
+                        orbitLastTargetId = null;
+                        orbitSnapCooldownTicks = 0;
                     }
                     combatTargetId = newId;
                 }
@@ -519,13 +531,47 @@ public final class PortalFlight implements ClientModInitializer {
                     combatAttackTicks++;
                     if (orbitAttackCooldownTicks > 0) orbitAttackCooldownTicks--;
                     if (orbitDiveRecoveryTicks > 0) orbitDiveRecoveryTicks--;
+                    if (orbitSnapCooldownTicks > 0) orbitSnapCooldownTicks--;
 
-                    Vec3 delta = target.position().subtract(player.position());
+                    // Track per-tick displacement for a modest lead on fast
+                    // moving targets. Only use entity data the client receives.
+                    Vec3 targetPosition = target.position();
+                    Vec3 trackedVelocity = Vec3.ZERO;
+                    if (target.getUUID().equals(orbitLastTargetId)
+                            && orbitLastTargetPosition != null) {
+                        trackedVelocity = targetPosition.subtract(orbitLastTargetPosition);
+                    }
+                    orbitLastTargetId = target.getUUID();
+                    orbitLastTargetPosition = targetPosition;
+                    double lead = 2.0;
+                    if (trackedVelocity.lengthSqr() > 4.0 * 4.0) {
+                        trackedVelocity = trackedVelocity.normalize().scale(4.0);
+                    }
+                    Vec3 predictedTarget = targetPosition.add(trackedVelocity.scale(lead));
+                    Vec3 delta = targetPosition.subtract(player.position());
                     double radius = Math.hypot(delta.x, delta.z);
                     boolean wieldingMace = player.getMainHandItem().is(Items.MACE);
 
-                    // Continuously blend pursuit into orbit instead of switching
-                    // abruptly at a distance threshold.
+                    // Re-lock with discrete position packets when a fast target
+                    // escapes the orbit. Never switch to ordinary approach flight.
+                    if (radius > ORBIT_RELOCK_DISTANCE && orbitSnapCooldownTicks == 0) {
+                        if (attemptOrbitSnap(client, player, target, predictedTarget)) {
+                            orbitSmoothedVelocity = Vec3.ZERO;
+                            orbitDiving = false;
+                            orbitDiveRecoveryTicks = 0;
+                        }
+                        orbitSnapCooldownTicks = ORBIT_SNAP_INTERVAL_TICKS;
+                        delta = target.position().subtract(player.position());
+                        radius = Math.hypot(delta.x, delta.z);
+                    }
+                    // When a packet is rejected, don't silently fly after the
+                    // target: wait for the next re-lock attempt.
+                    if (radius > ORBIT_RELOCK_DISTANCE) {
+                        player.setNoGravity(false);
+                        orbitSmoothedVelocity = Vec3.ZERO;
+                        player.setDeltaMovement(Vec3.ZERO);
+                    } else {
+                    // Use smoothed motion only after arriving near the target.
                     Vec3 inward = radius > 0.001
                             ? new Vec3(delta.x / radius, 0, delta.z / radius)
                             : new Vec3(-Math.sin(Math.toRadians(player.getYRot())),
@@ -533,14 +579,13 @@ public final class PortalFlight implements ClientModInitializer {
                     Vec3 tangent = new Vec3(-inward.z, 0, inward.x)
                             .scale(combatOrbitDirection);
                     double desiredRadius = wieldingMace && orbitDiving ? 2.4 : ORBIT_RADIUS;
-                    double correction = Math.max(-0.55, Math.min(ORBIT_PURSUIT_SPEED,
+                    double correction = Math.max(-0.55, Math.min(0.95,
                             (radius - desiredRadius) * 0.24));
                     // Orbit contribution fades naturally when far away.
                     double orbitBlend = Math.max(0.0, Math.min(1.0, 13.0 / Math.max(13.0, radius)));
                     Vec3 horizontal = tangent.scale(ORBIT_SPEED * orbitBlend)
                             .add(inward.scale(correction));
-                    double horizontalLimit = radius > 12.0
-                            ? ORBIT_PURSUIT_SPEED : ORBIT_MAX_HORIZONTAL_SPEED;
+                    double horizontalLimit = ORBIT_MAX_HORIZONTAL_SPEED;
                     if (horizontal.lengthSqr() > horizontalLimit * horizontalLimit) {
                         horizontal = horizontal.normalize().scale(horizontalLimit);
                     }
@@ -587,6 +632,7 @@ public final class PortalFlight implements ClientModInitializer {
                     }
                     orbitSmoothedVelocity = orbitSmoothedVelocity.add(velocityDifference);
                     player.setDeltaMovement(orbitSmoothedVelocity);
+                    }
 
                     // Aim at the actual target, not an empty space on the ring.
                     Vec3 aim = target.getEyePosition().subtract(player.getEyePosition());
@@ -627,6 +673,9 @@ public final class PortalFlight implements ClientModInitializer {
                     orbitDiving = false;
                     orbitDiveRecoveryTicks = 0;
                     orbitSmoothedVelocity = Vec3.ZERO;
+                    orbitLastTargetPosition = null;
+                    orbitLastTargetId = null;
+                    orbitSnapCooldownTicks = 0;
                     player.setNoGravity(false);
                 }
             } else if (!noclip && coordinateDestination == null && player.isNoGravity()) {
@@ -1106,6 +1155,10 @@ public final class PortalFlight implements ClientModInitializer {
                 orbitDiving = false;
                 orbitDiveRecoveryTicks = 0;
                 combatTargetId = null;
+                orbitSmoothedVelocity = Vec3.ZERO;
+                orbitLastTargetPosition = null;
+                orbitLastTargetId = null;
+                orbitSnapCooldownTicks = 0;
                 if (orbitCombat) { disableNoclip(mc); fly = false; freecam = false; }
                 else if (mc.player != null) mc.player.setNoGravity(false);
             }
@@ -1129,6 +1182,34 @@ public final class PortalFlight implements ClientModInitializer {
 
     public static void toggleAutoLeaveThreshold() {
         autoLeaveThreshold = autoLeaveThreshold == 2.0f ? 1.0f : 2.0f;
+    }
+
+    /**
+     * One re-lock position attempt beside and above a client-known target.
+     * The server remains authoritative and can reject the movement packet.
+     */
+    private static boolean attemptOrbitSnap(Minecraft client, LocalPlayer player,
+            Player target, Vec3 predictedTarget) {
+        if (client.getConnection() == null || client.level == null
+                || target.isRemoved() || !target.isAlive()) return false;
+        Vec3 lateral = player.position().subtract(target.position());
+        lateral = new Vec3(lateral.x, 0, lateral.z);
+        if (lateral.lengthSqr() < 0.01) lateral = new Vec3(1, 0, 0);
+        Vec3 destination = predictedTarget.add(lateral.normalize().scale(ORBIT_RADIUS))
+                .add(0, player.getMainHandItem().is(Items.MACE) ? ORBIT_DIVE_HEIGHT : 2.0, 0);
+        BlockPos feet = BlockPos.containing(destination);
+        if (!client.level.hasChunkAt(feet)
+                || !client.level.getBlockState(feet)
+                        .getCollisionShape(client.level, feet).isEmpty()
+                || !client.level.getBlockState(feet.above())
+                        .getCollisionShape(client.level, feet.above()).isEmpty()) return false;
+        player.setPos(destination.x, destination.y, destination.z);
+        player.setDeltaMovement(Vec3.ZERO);
+        player.fallDistance = 0;
+        client.getConnection().send(new ServerboundMovePlayerPacket.PosRot(
+                destination.x, destination.y, destination.z,
+                player.getYRot(), player.getXRot(), false, false));
+        return true;
     }
 
     private static void beginFreecam(LocalPlayer player) {
