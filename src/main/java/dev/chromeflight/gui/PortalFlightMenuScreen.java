@@ -20,7 +20,7 @@ public final class PortalFlightMenuScreen extends Screen {
     private static final String[] CATEGORIES =
             {"Combat", "Movement", "Render", "Player", "World", "Misc"};
     private static final String[][] IDS = {
-            {"orbit", "autototem", "autoleave"},
+            {"orbit", "orbitmobs", "autototem", "autoleave"},
             {"fly", "speed", "boat", "swim", "noclip", "sprint",
              "autowalk", "autojump", "highjump", "fastfall", "waterwalk",
              "autosneak", "noslow", "elytraboost", "nofall"},
@@ -30,7 +30,7 @@ public final class PortalFlightMenuScreen extends Screen {
             {}
     };
     private static final String[][] NAMES = {
-            {"Orbit Combat", "AutoTotem", "AutoLeave"},
+            {"Orbit Combat", "Target Mobs", "AutoTotem", "AutoLeave"},
             {"Fly", "Speed", "Boat Fly", "Swim Boost", "Noclip", "Auto Sprint",
              "AutoWalk", "AutoJump", "HighJump", "FastFall", "WaterWalk",
              "AutoSneak", "NoSlow", "Elytra Boost", "NoFall"},
