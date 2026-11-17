@@ -518,8 +518,8 @@ public final class PortalFlight implements ClientModInitializer {
                         combatOrbitDirection = -combatOrbitDirection;
                         orbitDiving = false;
                         orbitDiveRecoveryTicks = 0;
-                        // Approach smoothly instead of forcibly teleporting the
-                        // camera/player on target acquisition.
+                        // Re-lock to this player on the next tick rather than
+                        // following them with ordinary movement.
                         orbitSmoothedVelocity = player.getDeltaMovement();
                         orbitLastTargetPosition = null;
                         orbitLastTargetId = null;
@@ -554,7 +554,8 @@ public final class PortalFlight implements ClientModInitializer {
 
                     // Re-lock with discrete position packets when a fast target
                     // escapes the orbit. Never switch to ordinary approach flight.
-                    if (radius > ORBIT_RELOCK_DISTANCE && orbitSnapCooldownTicks == 0) {
+                    if (player.position().distanceTo(targetPosition) > ORBIT_RELOCK_DISTANCE
+                            && orbitSnapCooldownTicks == 0) {
                         if (attemptOrbitSnap(client, player, target, predictedTarget)) {
                             orbitSmoothedVelocity = Vec3.ZERO;
                             orbitDiving = false;
@@ -566,7 +567,7 @@ public final class PortalFlight implements ClientModInitializer {
                     }
                     // When a packet is rejected, don't silently fly after the
                     // target: wait for the next re-lock attempt.
-                    if (radius > ORBIT_RELOCK_DISTANCE) {
+                    if (player.position().distanceTo(targetPosition) > ORBIT_RELOCK_DISTANCE) {
                         player.setNoGravity(false);
                         orbitSmoothedVelocity = Vec3.ZERO;
                         player.setDeltaMovement(Vec3.ZERO);
