@@ -20,6 +20,9 @@ All are optional and disabled by default. The movement batch avoids overriding P
 
 ## Orbit Combat — fast charged mace dives and predictive aim
 
+**Test on mobs:** Open **Right Ctrl → Combat**, enable **Target Mobs** and **Orbit Combat** (or press **F12** to toggle Orbit Combat). With Target Mobs ON, the orbit locks onto the nearest currently client-loaded mob (such as a zombie, skeleton, or cow) and uses the same snap, tracking, orbit, and charged mace dive routines. Turning Target Mobs OFF restores player-only targeting; changing modes clears the old target lock. This is an exclusive target mode, not both players and mobs simultaneously. Attack range, movement and damage remain server-controlled.
+
+
 Use **F12** or **Right Ctrl → Combat → Orbit Combat**. Acquires **any currently client-loaded player entity**, with no additional client-side distance cap. Server entity tracking still limits which players and live positions are visible. With Orbit Combat active, it attempts a teleport-style position packet beside and above the locked target at both the **start and end of each client tick** (up to 40 attempts per second at 20 TPS), rather than approaching by ordinary flight. The two phases are not evenly spaced 25 ms apart. Teleport attempts pause during the actual mace descent to preserve fall distance for smash attacks. Re-lock uses bounded movement prediction; the server may reject or correct every position packet.
 
 **Accuracy:** The orbit uses a bounded lead based on recent target displacement and rotates toward the predicted eye position with faster, still capped turning. Within 4.5 blocks, it aims at the current target eye position. Its preferred orbit radius is about 3.7 blocks. **Orbit movement has a 1280-block/sec maximum (64 blocks/tick)**, with automatic close-range braking to avoid flying past the target. Because it constantly teleports back near the target, actual circling speed will usually be far below that ceiling.
