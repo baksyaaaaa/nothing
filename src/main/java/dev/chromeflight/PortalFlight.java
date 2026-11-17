@@ -84,7 +84,8 @@ public final class PortalFlight implements ClientModInitializer {
     private static final double ORBIT_SPEED = 64.0;
     private static final double ORBIT_ACCELERATION = 0.20;
     private static final double ORBIT_MAX_HORIZONTAL_SPEED = 64.0;
-    private static final double ORBIT_DIVE_HEIGHT = 6.0;
+    // Shorter mace setup keeps airborne targets close enough for actual hits.
+    private static final double ORBIT_DIVE_HEIGHT = 3.4;
     private static final double ORBIT_DIVE_ASCEND_SPEED = 1.20;
     private static final double ORBIT_DIVE_DESCEND_SPEED = 1.65;
     private static final double ORBIT_RADIUS = 3.7;
@@ -706,14 +707,17 @@ public final class PortalFlight implements ClientModInitializer {
                         player.setXRot(player.getXRot() + Math.max(-70.0f, Math.min(70.0f, pitchDifference)));
                     }
 
-                    // Mace only strikes during a charged, descending smash.
-                    // Ordinary weapons still respect their vanilla recharge.
-                    // Attempt attacks regardless of client-side distance.
-                    // The server still validates range, line of sight and damage.
-                    boolean maceReady = !wieldingMace || (orbitDiving
+                    // Never limit the attack packet by client distance, but
+                    // the server still validates reach. In particular, allow
+                    // an ordinary charged mace hit when the target is flying
+                    // away: requiring a full smash for every hit can cause
+                    // Orbit Combat to miss indefinitely.
+                    boolean descendingSmash = orbitDiving
                             && !player.onGround()
                             && player.getDeltaMovement().y < -0.10
-                            && player.fallDistance > 1.5f);
+                            && player.fallDistance > 1.5f;
+                    boolean maceReady = !wieldingMace || descendingSmash
+                            || player.distanceToSqr(target) < 4.5 * 4.5;
                     if (player.hasLineOfSight(target)
                             && maceReady && orbitAttackCooldownTicks == 0
                             && player.getAttackStrengthScale(0.0f) >= 0.99f) {
@@ -1354,7 +1358,7 @@ public final class PortalFlight implements ClientModInitializer {
         // In a mace cycle aim almost directly overhead to keep a moving
         // target within attack reach as the dive begins.
         boolean mace = player.getMainHandItem().is(Items.MACE);
-        double sideOffset = mace ? 1.15 : 1.8;
+        double sideOffset = mace ? 0.85 : 1.15;
         Vec3 destination = predictedTarget.add(lateral.normalize().scale(sideOffset))
                 .add(0, mace ? ORBIT_DIVE_HEIGHT : 0.5, 0);
         if (player.position().distanceToSqr(destination) < 0.20 * 0.20) {
