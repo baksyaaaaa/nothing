@@ -75,14 +75,11 @@ public final class PortalFlight implements ClientModInitializer {
     private static Vec3 orbitSmoothedVelocity = Vec3.ZERO;
     private static Vec3 orbitLastTargetPosition;
     private static UUID orbitLastTargetId;
-    private static int orbitSnapCooldownTicks;
     private static UUID combatTargetId;
     private static int combatOrbitDirection = 1;
     private static final double ORBIT_SPEED = 0.78;
     private static final double ORBIT_ACCELERATION = 0.20;
     private static final double ORBIT_MAX_HORIZONTAL_SPEED = 1.25;
-    private static final double ORBIT_RELOCK_DISTANCE = 9.0;
-    private static final int ORBIT_SNAP_INTERVAL_TICKS = 8;
     private static final double ORBIT_DIVE_HEIGHT = 6.0;
     private static final double ORBIT_DIVE_ASCEND_SPEED = 1.20;
     private static final double ORBIT_DIVE_DESCEND_SPEED = 1.65;
@@ -198,6 +195,22 @@ public final class PortalFlight implements ClientModInitializer {
                 }
             }
         });
+        // First re-lock opportunity, before the normal client movement tick.
+        // START and END are phases of the same 20 TPS tick, not an exact
+        // 25 ms timer. Both call only ordinary client/network code.
+        ClientTickEvents.START_CLIENT_TICK.register(client -> {
+            if (!orbitCombat || orbitDiving || noclip || freecam || fly
+                    || client.player == null || client.level == null
+                    || client.player.getVehicle() != null || client.screen != null
+                    || combatTargetId == null || client.getConnection() == null) return;
+            for (Player other : client.level.players()) {
+                if (other != client.player && other.getUUID().equals(combatTargetId)
+                        && other.isAlive() && !other.isSpectator() && !other.isRemoved()) {
+                    attemptOrbitSnap(client, client.player, other, other.position());
+                    break;
+                }
+            }
+        });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (clickGuiKey.consumeClick()) {
                 if (client.screen == null) client.setScreen(new PortalFlightMenuScreen());
@@ -221,7 +234,6 @@ public final class PortalFlight implements ClientModInitializer {
                 orbitSmoothedVelocity = Vec3.ZERO;
                 orbitLastTargetPosition = null;
                 orbitLastTargetId = null;
-                orbitSnapCooldownTicks = 0;
                 if (!orbitCombat && client.player != null && !noclip) client.player.setNoGravity(false);
                 message(client, "Orbit Combat " + (orbitCombat ? "ON" : "OFF"));
             }
@@ -522,15 +534,13 @@ public final class PortalFlight implements ClientModInitializer {
                         orbitSmoothedVelocity = player.getDeltaMovement();
                         orbitLastTargetPosition = null;
                         orbitLastTargetId = null;
-                        orbitSnapCooldownTicks = 0;
-                    }
+                            }
                     combatTargetId = newId;
                 }
                 if (target != null) {
                     combatAttackTicks++;
                     if (orbitAttackCooldownTicks > 0) orbitAttackCooldownTicks--;
                     if (orbitDiveRecoveryTicks > 0) orbitDiveRecoveryTicks--;
-                    if (orbitSnapCooldownTicks > 0) orbitSnapCooldownTicks--;
 
                     // Track per-tick displacement for a modest lead on fast
                     // moving targets. Only use entity data the client receives.
@@ -554,26 +564,15 @@ public final class PortalFlight implements ClientModInitializer {
                     double radius = Math.hypot(delta.x, delta.z);
                     boolean wieldingMace = player.getMainHandItem().is(Items.MACE);
 
-                    // Re-lock with discrete position packets when a fast target
-                    // escapes the orbit. Never switch to ordinary approach flight.
-                    if (player.position().distanceTo(targetPosition) > ORBIT_RELOCK_DISTANCE
-                            && orbitSnapCooldownTicks == 0) {
-                        if (attemptOrbitSnap(client, player, target, predictedTarget)) {
-                            orbitSmoothedVelocity = Vec3.ZERO;
-                            orbitDiving = false;
-                            orbitDiveRecoveryTicks = 0;
-                        }
-                        orbitSnapCooldownTicks = ORBIT_SNAP_INTERVAL_TICKS;
+                    // Second per-tick re-lock opportunity. Don't teleport during
+                    // the actual mace dive: that resets fall distance and can
+                    // prevent the server from awarding smash damage.
+                    if (!orbitDiving && attemptOrbitSnap(client, player, target, predictedTarget)) {
+                        orbitSmoothedVelocity = Vec3.ZERO;
                         delta = target.position().subtract(player.position());
                         radius = Math.hypot(delta.x, delta.z);
                     }
-                    // When a packet is rejected, don't silently fly after the
-                    // target: wait for the next re-lock attempt.
-                    if (player.position().distanceTo(targetPosition) > ORBIT_RELOCK_DISTANCE) {
-                        player.setNoGravity(false);
-                        orbitSmoothedVelocity = Vec3.ZERO;
-                        player.setDeltaMovement(Vec3.ZERO);
-                    } else {
+                    {
                     // Use smoothed motion only after arriving near the target.
                     Vec3 inward = radius > 0.001
                             ? new Vec3(delta.x / radius, 0, delta.z / radius)
@@ -687,8 +686,7 @@ public final class PortalFlight implements ClientModInitializer {
                     orbitSmoothedVelocity = Vec3.ZERO;
                     orbitLastTargetPosition = null;
                     orbitLastTargetId = null;
-                    orbitSnapCooldownTicks = 0;
-                    player.setNoGravity(false);
+                        player.setNoGravity(false);
                 }
             } else if (!noclip && coordinateDestination == null && player.isNoGravity()) {
                 // Restore gravity when Orbit Combat is turned off.
@@ -1213,7 +1211,6 @@ public final class PortalFlight implements ClientModInitializer {
                 orbitSmoothedVelocity = Vec3.ZERO;
                 orbitLastTargetPosition = null;
                 orbitLastTargetId = null;
-                orbitSnapCooldownTicks = 0;
                 if (orbitCombat) { disableNoclip(mc); fly = false; freecam = false; }
                 else if (mc.player != null) mc.player.setNoGravity(false);
             }
