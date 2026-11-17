@@ -23,6 +23,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
@@ -67,10 +68,14 @@ public final class PortalFlight implements ClientModInitializer {
     private static int scanTick;
     private static int combatAttackTicks;
     private static int orbitAttackCooldownTicks;
+    private static boolean orbitDiving;
+    private static int orbitDiveRecoveryTicks;
     private static UUID combatTargetId;
     private static int combatOrbitDirection = 1;
     private static final double ORBIT_ATTACK_ATTEMPT_RANGE = 6.0;
     private static final double ORBIT_SPEED = 1.55;
+    private static final double ORBIT_PURSUIT_SPEED = 10.0;
+    private static final double ORBIT_DIVE_HEIGHT = 9.0;
     private static final double ORBIT_RADIUS = 4.25;
     private static final double COMBAT_VERTICAL_SPEED = 0.85;
     private static final double NOCLIP_SPEED = 0.55;
@@ -195,6 +200,8 @@ public final class PortalFlight implements ClientModInitializer {
                 orbitCombat = !orbitCombat;
                 combatAttackTicks = 0;
                 orbitAttackCooldownTicks = 0;
+                orbitDiving = false;
+                orbitDiveRecoveryTicks = 0;
                 combatTargetId = null;
                 if (!orbitCombat && client.player != null && !noclip) client.player.setNoGravity(false);
                 message(client, "Orbit Combat " + (orbitCombat ? "ON" : "OFF"));
@@ -401,64 +408,121 @@ public final class PortalFlight implements ClientModInitializer {
                     UUID newId = target == null ? null : target.getUUID();
                     if (newId != null && !newId.equals(combatTargetId)) {
                         combatOrbitDirection = -combatOrbitDirection;
+                        orbitDiving = false;
+                        orbitDiveRecoveryTicks = 0;
+                        // One snap attempt when acquiring a new tracked player.
+                        // The server can ignore/correct it. Pursuit works without it.
+                        attemptOrbitSnap(client, player, target);
                     }
                     combatTargetId = newId;
                 }
                 if (target != null) {
                     combatAttackTicks++;
                     if (orbitAttackCooldownTicks > 0) orbitAttackCooldownTicks--;
-                    // Aim at the opponent while following them in the air.
-                    Vec3 aim = target.getEyePosition().subtract(player.getEyePosition());
-                    double flatAim = Math.sqrt(aim.x * aim.x + aim.z * aim.z);
-                    if (flatAim > 0.0001) {
-                        player.setYRot((float)Math.toDegrees(Math.atan2(-aim.x, aim.z)));
-                        player.setXRot((float)-Math.toDegrees(Math.atan2(aim.y, flatAim)));
-                    }
+                    if (orbitDiveRecoveryTicks > 0) orbitDiveRecoveryTicks--;
 
                     Vec3 delta = target.position().subtract(player.position());
                     double radius = Math.hypot(delta.x, delta.z);
-                    // Circular motion tracks the target even while it moves.
-                    // When starting directly on top of it, pick a stable tangent.
-                    Vec3 inward = radius > 0.001
-                            ? new Vec3(delta.x / radius, 0, delta.z / radius)
-                            : new Vec3(-Math.sin(Math.toRadians(player.getYRot())),
-                                    0, Math.cos(Math.toRadians(player.getYRot())));
-                    Vec3 tangent = new Vec3(-inward.z, 0, inward.x)
-                            .scale(combatOrbitDirection);
-                    // Aggressive tangential speed with strong radial corrections.
-                    double correction = Math.max(-1.3, Math.min(2.2,
-                            (radius - ORBIT_RADIUS) * 0.60));
-                    Vec3 horizontal = tangent.scale(ORBIT_SPEED).add(inward.scale(correction));
-                    if (horizontal.lengthSqr() > 2.3 * 2.3) {
-                        horizontal = horizontal.normalize().scale(2.3);
-                    }
-                    // Swoop up and down while circling rather than standing
-                    // still and repeatedly clicking.
-                    double cycle = Math.sin(combatAttackTicks * 0.19);
-                    double desiredHeight = target.getY() + 2.0 + cycle * 2.0;
-                    double vertical = Math.max(-COMBAT_VERTICAL_SPEED,
-                            Math.min(COMBAT_VERTICAL_SPEED,
-                                    (desiredHeight - player.getY()) * 0.55));
-                    player.setNoGravity(true);
-                    player.setDeltaMovement(horizontal.x, vertical, horizontal.z);
-                    player.fallDistance = 0;
+                    boolean wieldingMace = player.getMainHandItem().is(Items.MACE);
 
-                    // Extra client-side reach is an ATTEMPT only: the server
-                    // still decides which attacks are legal and how much damage.
+                    // Pursue client-known players anywhere within render distance,
+                    // then transition into high-speed circling when nearby.
+                    if (radius > 11.0) {
+                        orbitDiving = false;
+                        Vec3 chase = target.position().add(0, wieldingMace ? ORBIT_DIVE_HEIGHT : 2.5, 0)
+                                .subtract(player.position());
+                        double length = chase.length();
+                        player.setNoGravity(true);
+                        player.setDeltaMovement(length > 0.001
+                                ? chase.scale(Math.min(ORBIT_PURSUIT_SPEED, length) / length)
+                                : Vec3.ZERO);
+                        player.fallDistance = 0;
+                    } else {
+                        Vec3 inward = radius > 0.001
+                                ? new Vec3(delta.x / radius, 0, delta.z / radius)
+                                : new Vec3(-Math.sin(Math.toRadians(player.getYRot())),
+                                        0, Math.cos(Math.toRadians(player.getYRot())));
+                        Vec3 tangent = new Vec3(-inward.z, 0, inward.x)
+                                .scale(combatOrbitDirection);
+                        double desiredRadius = wieldingMace && orbitDiving ? 1.8 : ORBIT_RADIUS;
+                        double correction = Math.max(-1.3, Math.min(2.2,
+                                (radius - desiredRadius) * 0.60));
+                        Vec3 horizontal = tangent.scale(ORBIT_SPEED).add(inward.scale(correction));
+                        if (horizontal.lengthSqr() > 2.3 * 2.3) {
+                            horizontal = horizontal.normalize().scale(2.3);
+                        }
+
+                        double vertical;
+                        if (wieldingMace) {
+                            // Climb high enough to build a smash, then descend with
+                            // gravity enabled so the game can accumulate fall distance.
+                            double heightAboveTarget = player.getY() - target.getY();
+                            if (!orbitDiving && orbitDiveRecoveryTicks == 0
+                                    && heightAboveTarget >= ORBIT_DIVE_HEIGHT - 0.5) {
+                                orbitDiving = true;
+                            }
+                            if (orbitDiving) {
+                                player.setNoGravity(false);
+                                vertical = -Math.min(1.5, Math.max(0.6,
+                                        (heightAboveTarget + 1.0) * 0.19));
+                                // Once below the target, restart the ascent.
+                                if (heightAboveTarget < -0.6 || player.onGround()) {
+                                    orbitDiving = false;
+                                    orbitDiveRecoveryTicks = 5;
+                                }
+                            } else {
+                                player.setNoGravity(true);
+                                vertical = Math.max(-0.2, Math.min(1.2,
+                                        (target.getY() + ORBIT_DIVE_HEIGHT - player.getY()) * 0.60));
+                                player.fallDistance = 0;
+                            }
+                        } else {
+                            orbitDiving = false;
+                            player.setNoGravity(true);
+                            double cycle = Math.sin(combatAttackTicks * 0.19);
+                            double desiredHeight = target.getY() + 2.0 + cycle * 2.0;
+                            vertical = Math.max(-COMBAT_VERTICAL_SPEED,
+                                    Math.min(COMBAT_VERTICAL_SPEED,
+                                            (desiredHeight - player.getY()) * 0.55));
+                            player.fallDistance = 0;
+                        }
+                        player.setDeltaMovement(horizontal.x, vertical, horizontal.z);
+                    }
+
+                    // Aim at the actual target, not an empty space on the ring.
+                    Vec3 aim = target.getEyePosition().subtract(player.getEyePosition());
+                    double flatAim = Math.hypot(aim.x, aim.z);
+                    if (flatAim > 0.0001) {
+                        player.setYRot((float) Math.toDegrees(Math.atan2(-aim.x, aim.z)));
+                        player.setXRot((float) -Math.toDegrees(Math.atan2(aim.y, flatAim)));
+                    }
+
+                    // Mace only strikes during a charged, descending smash.
+                    // Ordinary weapons still respect their vanilla recharge.
                     boolean inReach = player.distanceToSqr(target)
                             <= ORBIT_ATTACK_ATTEMPT_RANGE * ORBIT_ATTACK_ATTEMPT_RANGE;
+                    boolean maceReady = !wieldingMace || (orbitDiving
+                            && !player.onGround()
+                            && player.getDeltaMovement().y < -0.10
+                            && player.fallDistance > 1.5f);
                     if (inReach && player.hasLineOfSight(target)
-                            && orbitAttackCooldownTicks == 0
-                            && player.getAttackStrengthScale(0.0f) >= 0.95f) {
+                            && maceReady && orbitAttackCooldownTicks == 0
+                            && player.getAttackStrengthScale(0.0f) >= 0.99f) {
                         client.gameMode.attack(player, target);
                         player.swing(InteractionHand.MAIN_HAND);
                         orbitAttackCooldownTicks = 5;
+                        if (wieldingMace) {
+                            orbitDiving = false;
+                            orbitDiveRecoveryTicks = 5;
+                        }
                     }
                 } else {
                     // No nearby target: do not leave the player hovering indefinitely.
                     combatTargetId = null;
                     combatAttackTicks = 0;
                     orbitAttackCooldownTicks = 0;
+                    orbitDiving = false;
+                    orbitDiveRecoveryTicks = 0;
                     player.setNoGravity(false);
                 }
             } else if (!noclip && coordinateDestination == null && player.isNoGravity()) {
@@ -933,6 +997,28 @@ public final class PortalFlight implements ClientModInitializer {
             case "privacy" -> privacyMode = !privacyMode;
             case "portal" -> { portalScan = !portalScan; nearestFrame = null; }
         }
+    }
+
+    private static void attemptOrbitSnap(Minecraft client, LocalPlayer player, Player target) {
+        if (client.getConnection() == null || target.distanceToSqr(player) < 12.0 * 12.0) return;
+        // Snap above and to the side of the target to prepare a mace dive.
+        // Never claim that the server accepted this movement packet.
+        Vec3 offset = player.position().subtract(target.position());
+        Vec3 lateral = new Vec3(offset.x, 0, offset.z);
+        if (lateral.lengthSqr() < 0.01) lateral = new Vec3(1, 0, 0);
+        Vec3 destination = target.position().add(
+                lateral.normalize().scale(ORBIT_RADIUS)).add(0, ORBIT_DIVE_HEIGHT, 0);
+        BlockPos block = BlockPos.containing(destination);
+        if (!client.level.hasChunkAt(block)
+                || !client.level.getBlockState(block).getCollisionShape(client.level, block).isEmpty()
+                || !client.level.getBlockState(block.above())
+                        .getCollisionShape(client.level, block.above()).isEmpty()) return;
+        player.setPos(destination.x, destination.y, destination.z);
+        player.setDeltaMovement(Vec3.ZERO);
+        player.fallDistance = 0;
+        client.getConnection().send(new ServerboundMovePlayerPacket.PosRot(
+                destination.x, destination.y, destination.z,
+                player.getYRot(), player.getXRot(), false, false));
     }
 
     private static void beginFreecam(LocalPlayer player) {
