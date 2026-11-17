@@ -260,11 +260,17 @@ public final class PortalFlight implements ClientModInitializer {
             // Re-check the actual local position after the next network updates.
             if (pendingTeleportDestination != null && --pendingTeleportCheckTicks <= 0) {
                 double error = player.position().distanceTo(pendingTeleportDestination);
-                message(client, error < 3.0
-                        ? "TP: still at destination after 2s (server acceptance not guaranteed)"
-                        : "TP unsuccessful: " + (int)Math.round(error)
-                                + " blocks from destination after 2s");
+                Vec3 attemptedDestination = pendingTeleportDestination;
                 pendingTeleportDestination = null;
+                if (error < 3.0) {
+                    message(client, "TP: near destination (server acceptance not guaranteed)");
+                } else if (startCoordinateFlight(attemptedDestination.x,
+                        attemptedDestination.y, attemptedDestination.z)) {
+                    message(client, "TP not accepted: switching to cruise flight ("
+                            + (int) Math.round(error) + " blocks remaining)");
+                } else {
+                    message(client, "TP rejected, and cruise could not start");
+                }
             }
             if (noclip) {
                 player.noPhysics = true;
@@ -575,22 +581,24 @@ public final class PortalFlight implements ClientModInitializer {
                     // This is not teleportation; servers may reject/correct movement.
                     double speedLimit = highSpeedPlayerTravel
                             ? PLAYER_TRAVEL_SPEED_PER_TICK : coordinateFlightMaxSpeed;
+                    // Do not stall near a waypoint when the configured cruise speed
+                    // is high. Bound each velocity to the remaining distance.
                     double travelSpeed = highSpeedPlayerTravel
                             ? Math.min(speedLimit, remaining)
-                            : Math.min(speedLimit, Math.max(0.001, remaining * 0.22));
+                            : Math.min(speedLimit, Math.max(0.30, remaining * 0.35));
                     player.setNoGravity(true);
                     player.setDeltaMovement(remaining > 0.001
                             ? delta.normalize().scale(travelSpeed) : Vec3.ZERO);
                     player.setOnGround(false);
                     player.fallDistance = 0;
                     if (coordinateFlightLastPosition != null
-                            && currentPosition.distanceToSqr(coordinateFlightLastPosition) < 0.0004) {
+                            && currentPosition.distanceToSqr(coordinateFlightLastPosition) < 0.0025) {
                         coordinateFlightStuckTicks++;
                     } else {
                         coordinateFlightStuckTicks = 0;
                     }
                     coordinateFlightLastPosition = currentPosition;
-                    if (coordinateFlightStuckTicks > 40) {
+                    if (coordinateFlightStuckTicks > 60) {
                         stopCoordinateFlight();
                         player.setDeltaMovement(Vec3.ZERO);
                         message(client, "Coordinate Flight stopped: blocked or corrected by server");
