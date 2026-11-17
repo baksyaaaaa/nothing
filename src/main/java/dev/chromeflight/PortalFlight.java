@@ -58,7 +58,6 @@ public final class PortalFlight implements ClientModInitializer {
     private static int pendingTeleportCheckTicks;
     private static String coordinateTeleportError = "";
     private static Vec3 pendingTeleportOrigin;
-    private static boolean pendingTeleportMovedAway;
     private static String lastTeleportStatus = "No teleport attempted yet.";
     // Fly to Player has a separate extreme client-side speed (50,000 blocks/second).
     private static final double PLAYER_TRAVEL_SPEED_PER_TICK = 2500.0;
@@ -280,7 +279,6 @@ public final class PortalFlight implements ClientModInitializer {
                 cruisePhaseApplied = false;
                 pendingTeleportDestination = null;
                 pendingTeleportOrigin = null;
-                pendingTeleportMovedAway = false;
                 pendingTeleportCheckTicks = 0;
                 autoTotemDelayTicks = 0;
                 autoJumpWasGrounded = false;
@@ -322,7 +320,6 @@ public final class PortalFlight implements ClientModInitializer {
             // position. The actual server rejection reason is not in the packet.
             if (pendingTeleportDestination != null) {
                 double distanceFromTarget = player.position().distanceTo(pendingTeleportDestination);
-                if (distanceFromTarget > 3.0) pendingTeleportMovedAway = true;
                 if (--pendingTeleportCheckTicks <= 0) {
                     if (distanceFromTarget < 3.0) {
                         reportTeleport(client, "TP near destination: server acceptance not guaranteed.");
@@ -339,7 +336,6 @@ public final class PortalFlight implements ClientModInitializer {
                     }
                     pendingTeleportDestination = null;
                     pendingTeleportOrigin = null;
-                    pendingTeleportMovedAway = false;
                 }
             }
             if (noclip) {
@@ -1150,7 +1146,6 @@ public final class PortalFlight implements ClientModInitializer {
         freecam = false;
         speed = false;
         pendingTeleportOrigin = mc.player.position();
-        pendingTeleportMovedAway = false;
         mc.player.setDeltaMovement(Vec3.ZERO);
         mc.player.setNoGravity(false);
         mc.player.setPos(x, y, z);
