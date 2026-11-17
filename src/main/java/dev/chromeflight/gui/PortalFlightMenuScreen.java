@@ -60,6 +60,9 @@ public final class PortalFlightMenuScreen extends Screen {
             addRenderableWidget(Button.builder(Component.literal("Coordinate Flight Settings - Speed / XYZ"), btn -> {
                 if (this.minecraft != null) this.minecraft.setScreen(new CoordinateFlightScreen());
             }).bounds(panelX + 10, panelY + 191, inner, 22).build());
+            addRenderableWidget(Button.builder(Component.literal("Fly to Player - No Commands"), btn -> {
+                if (this.minecraft != null) this.minecraft.setScreen(new PlayerTravelScreen());
+            }).bounds(panelX + 10, panelY + 218, inner, 22).build());
         }
 
         if (category == 3) {
