@@ -56,6 +56,7 @@ public final class PortalFlight implements ClientModInitializer {
     private static double coordinateFlightMaxSpeed = 16.0;
     private static Vec3 pendingTeleportDestination;
     private static int pendingTeleportCheckTicks;
+    private static String coordinateTeleportError = "";
     // Fly to Player has a separate extreme client-side speed (50,000 blocks/second).
     private static final double PLAYER_TRAVEL_SPEED_PER_TICK = 2500.0;
     private static boolean highSpeedPlayerTravel;
@@ -1032,13 +1033,53 @@ public final class PortalFlight implements ClientModInitializer {
      * protocol. No server command or guaranteed permission is involved: the
      * server remains authoritative and may rubber-band the player.
      */
+    public static String getCoordinateTeleportError() {
+        return coordinateTeleportError;
+    }
+
     public static boolean attemptCoordinateTeleport(double x, double y, double z) {
         Minecraft mc = Minecraft.getInstance();
+        coordinateTeleportError = "Invalid coordinates or not in a world.";
         if (mc.player == null || mc.level == null || mc.getConnection() == null
                 || mc.player.getVehicle() != null
                 || !Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)
                 || Math.abs(x) > 29999984 || Math.abs(z) > 29999984
                 || y < -2048 || y > 2048) return false;
+
+        // A one-packet downward teleport does not erase the server's tracked
+        // fall distance. Reject large drops rather than claiming NoFall works.
+        double downwardDrop = mc.player.getY() - y;
+        if (downwardDrop > 2.0) {
+            coordinateTeleportError = "Unsafe downward TP (" + (int) Math.ceil(downwardDrop)
+                    + " blocks). Not sent: server fall damage can kill you.";
+            return false;
+        }
+        if (mc.player.fallDistance > 2.0f) {
+            coordinateTeleportError = "Unsafe TP while falling. Land safely first.";
+            return false;
+        }
+        // Only check local landing geometry when the destination chunk is
+        // loaded. An un-loaded remote location cannot be verified as safe.
+        BlockPos feet = BlockPos.containing(x, y, z);
+        if (mc.level.hasChunkAt(feet)) {
+            boolean occupied = !mc.level.getBlockState(feet)
+                    .getCollisionShape(mc.level, feet).isEmpty()
+                    || !mc.level.getBlockState(feet.above())
+                    .getCollisionShape(mc.level, feet.above()).isEmpty();
+            if (occupied) {
+                coordinateTeleportError = "Destination blocked (feet or head). TP not sent.";
+                return false;
+            }
+            if (downwardDrop > 0.0 && mc.level.getBlockState(feet.below())
+                    .getCollisionShape(mc.level, feet.below()).isEmpty()) {
+                coordinateTeleportError = "No solid landing below destination. TP not sent.";
+                return false;
+            }
+        } else if (downwardDrop > 0.0) {
+            coordinateTeleportError = "Downward TP needs a loaded landing area. TP not sent.";
+            return false;
+        }
+
         stopCoordinateFlight();
         disableNoclip(mc);
         fly = false;
@@ -1049,11 +1090,14 @@ public final class PortalFlight implements ClientModInitializer {
         mc.player.setDeltaMovement(Vec3.ZERO);
         mc.player.setNoGravity(false);
         mc.player.setPos(x, y, z);
+        // Local fallDistance changes do not override the server's damage
+        // calculation; safety is enforced by refusing unsafe drops above.
         mc.player.fallDistance = 0;
         mc.getConnection().send(new ServerboundMovePlayerPacket.PosRot(
                 x, y, z, mc.player.getYRot(), mc.player.getXRot(), false, false));
         pendingTeleportDestination = new Vec3(x, y, z);
         pendingTeleportCheckTicks = 40;
+        coordinateTeleportError = "";
         return true;
     }
 
