@@ -15,6 +15,7 @@ import org.joml.Matrix4f;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.client.KeyMapping;
 import dev.chromeflight.gui.PortalFlightMenuScreen;
+import dev.chromeflight.HomeCommands;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
@@ -37,7 +38,7 @@ import org.lwjgl.glfw.GLFW;
 
 public final class PortalFlight implements ClientModInitializer {
     private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey, swimKey, boatDescendKey, playerEspKey, mobEspKey, storageFinderKey, autoSprintKey, tracerKey, orbitCombatKey, noclipKey, clickGuiKey;
-    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat, noclip
+    private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat, noclip;
     public static boolean freecam;
     public static Vec3 freecamPosition = Vec3.ZERO;
     public static Vec3 freecamPreviousPosition = Vec3.ZERO;
@@ -100,6 +101,7 @@ public final class PortalFlight implements ClientModInitializer {
 
     @Override public void onInitializeClient() {
         loadCoordinateFlightSpeed();
+        HomeCommands.register();
         // KeyMapping.Category constructor details vary by mappings; use the vanilla miscellaneous category.
         speedKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.speed", GLFW.GLFW_KEY_V, KeyMapping.Category.MISC));
         boatKey = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.portalflight.boat", GLFW.GLFW_KEY_B, KeyMapping.Category.MISC));
