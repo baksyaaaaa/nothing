@@ -18,11 +18,13 @@ Open **Right Ctrl → Movement** and use **Next modules** to see the new movemen
 
 All are optional and disabled by default. The movement batch avoids overriding PortalFlight's manual Fly, Coordinate Cruise, Orbit Combat, Noclip and Freecam. Server-side movement checks may correct or reject the client-proposed velocity. Use **Prev modules** to return to the original movement toggles. These are original, limited implementations rather than exact copies of Meteor Client's modules.
 
-## Orbit Combat — teleport re-lock and aerial mace dives
+## Orbit Combat — fast charged mace dives and predictive aim
 
-Use **F12** or **Right Ctrl → Combat → Orbit Combat**. Orbit Combat acquires client-loaded players within your configured render distance (subject to server entity tracking). It now uses **teleport-style position packets to re-lock near a target**, rather than flying toward them from a distance. It attempts a snap beside and above the player on acquisition or whenever the player is more than **9 blocks away in 3D**, with an **8-tick cooldown** between re-lock attempts. Each attempt uses a short lead based on the last two received player positions and checks destination collision where chunks are available; it does **not** reveal coordinates the server never sent.
+Use **F12** or **Right Ctrl → Combat → Orbit Combat**. Acquires client-loaded players within the configured render distance, limited by the server's entity-tracking range. On initial acquisition and whenever a locked target gets more than **9 blocks away**, it attempts a teleport-style position packet beside and above the target with an 8-tick re-lock interval, rather than ordinary approach flight. Re-lock uses bounded movement prediction; the server may reject or correct every position packet.
 
-Once near a target, it uses smooth, acceleration-limited circling. With a **mace in the main hand**, it ascends about **9 blocks** and attempts a smash only during a charged downward dive with sufficient fall distance. The server remains authoritative: it can reject teleport packets, correct the player's position, or stop sending distant target entities. Re-lock cannot guarantee tracking a player whose position is no longer received, nor can it grant extra attack reach or damage.
+**Accuracy:** The orbit uses a bounded lead based on recent target displacement and rotates toward the predicted eye position with faster, still capped turning. Within 4.5 blocks, it aims at the current target eye position. Its preferred orbit radius is about 3.7 blocks.
+
+**Mace:** With a mace equipped, it climbs toward approximately **6 blocks above the target** at up to **1.2 blocks/tick**, and begins a rapid descent up to **1.65 blocks/tick** once the weapon is at least **99% charged**. It attempts a mace attack only while airborne, falling, in line of sight, and with more than 1.5 blocks of client fall distance. Following a hit it quickly resets for the next climb. The **8-block attack range is an attempted client reach**, not guaranteed real server reach or damage. The server controls damage, attack cooldowns, movement acceptance, and mace smash mechanics. A hit can fail even when the client attempts one.
 
 ## AutoTotem and AutoLeave
 
