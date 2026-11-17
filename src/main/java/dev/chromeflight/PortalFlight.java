@@ -38,6 +38,8 @@ public final class PortalFlight implements ClientModInitializer {
     private static boolean speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat, noclip;
     public static boolean freecam;
     public static Vec3 freecamPosition = Vec3.ZERO;
+    public static Vec3 freecamPreviousPosition = Vec3.ZERO;
+    private static Vec3 freecamVelocity = Vec3.ZERO;
     private static Vec3 coordinateDestination;
     private static int coordinateFlightStuckTicks;
     private static Vec3 coordinateFlightLastPosition;
@@ -46,6 +48,8 @@ public final class PortalFlight implements ClientModInitializer {
     private static double coordinateFlightMaxSpeed = 16.0;
     private static final double COORDINATE_FLIGHT_ARRIVAL_RADIUS = 0.8;
     private static final double FREECAM_SPEED = 0.75;
+    private static final double FREECAM_ACCELERATION = 0.32;
+    private static final double FREECAM_FRICTION = 0.70;
     private static final double FLY_SPEED = 0.40;
     private static final double SPRINT_FLY_SPEED = 1.20;
     private static final double SWIM_BOOST_SPEED = 1.65;
@@ -206,7 +210,7 @@ public final class PortalFlight implements ClientModInitializer {
             LocalPlayer player = client.player;
             while (freecamKey.consumeClick()) {
                 freecam = !freecam;
-                if (freecam && player != null) freecamPosition = player.getEyePosition();
+                if (freecam && player != null) beginFreecam(player);
                 message(client, "Freecam " + (freecam ? "ON" : "OFF"));
             }
             if (player == null || client.level == null) {
@@ -418,15 +422,21 @@ public final class PortalFlight implements ClientModInitializer {
                 Vec3 movement = forwardVec.scale((forward ? 1 : 0) - (back ? 1 : 0))
                     .add(rightVec.scale((right ? 1 : 0) - (left ? 1 : 0)))
                     .add(0, (up ? 1 : 0) - (down ? 1 : 0), 0);
+                // Maintain a separate camera path, easing starts/stops instead of
+                // jumping 0.75 blocks once every 50 ms. The renderer interpolates
+                // between these tick positions for smooth motion at high FPS.
+                Vec3 targetVelocity = movement.lengthSqr() > 0
+                        ? movement.normalize().scale(FREECAM_SPEED) : Vec3.ZERO;
+                freecamPreviousPosition = freecamPosition;
                 if (movement.lengthSqr() > 0) {
-                    freecamPosition = freecamPosition.add(movement.normalize().scale(FREECAM_SPEED));
+                    freecamVelocity = freecamVelocity.lerp(targetVelocity, FREECAM_ACCELERATION);
+                } else {
+                    freecamVelocity = freecamVelocity.scale(FREECAM_FRICTION);
+                    if (freecamVelocity.lengthSqr() < 0.00001) freecamVelocity = Vec3.ZERO;
                 }
-                client.options.keyUp.setDown(false);
-                client.options.keyDown.setDown(false);
-                client.options.keyLeft.setDown(false);
-                client.options.keyRight.setDown(false);
-                client.options.keyJump.setDown(false);
-                client.options.keyShift.setDown(false);
+                freecamPosition = freecamPosition.add(freecamVelocity);
+                // Do not force key mappings up here: that causes alternating input
+                // states and visibly jerky camera movement while keys are held.
                 player.setDeltaMovement(Vec3.ZERO);
             }
             if (!noclip && !freecam && swimBoost && !fly && player.getVehicle() == null && player.isInWater()) {
@@ -779,7 +789,7 @@ public final class PortalFlight implements ClientModInitializer {
                 if (freecam && mc.player != null) {
                     disableNoclip(mc);
                     fly = false;
-                    freecamPosition = mc.player.getEyePosition();
+                    beginFreecam(mc.player);
                 }
             }
             case "players" -> playerEsp = !playerEsp;
@@ -799,6 +809,12 @@ public final class PortalFlight implements ClientModInitializer {
             case "privacy" -> privacyMode = !privacyMode;
             case "portal" -> { portalScan = !portalScan; nearestFrame = null; }
         }
+    }
+
+    private static void beginFreecam(LocalPlayer player) {
+        freecamPosition = player.getEyePosition();
+        freecamPreviousPosition = freecamPosition;
+        freecamVelocity = Vec3.ZERO;
     }
 
     private static void resetBoatTracking() {
