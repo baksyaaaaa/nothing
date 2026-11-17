@@ -30,6 +30,8 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Deque;
+import java.util.Map;
+import java.util.HashMap;
 import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 
@@ -40,6 +42,8 @@ public final class PortalFlight implements ClientModInitializer {
     public static Vec3 freecamPosition = Vec3.ZERO;
     public static Vec3 freecamPreviousPosition = Vec3.ZERO;
     private static Vec3 freecamVelocity = Vec3.ZERO;
+    private static final Map<UUID, Vec3> lastSeenPlayerPositions = new HashMap<>();
+    private static String lastSeenWorldKey = "";
     private static Vec3 coordinateDestination;
     private static int coordinateFlightStuckTicks;
     private static Vec3 coordinateFlightLastPosition;
@@ -225,6 +229,7 @@ public final class PortalFlight implements ClientModInitializer {
                 coordinateFlightLastPosition = null; coordinateFlightStuckTicks = 0;
                 elytraPacketTicks = 0;
                 nearbyStorage.clear(); lastStorageScanOrigin = null; storageWorldKey = "";
+                lastSeenPlayerPositions.clear(); lastSeenWorldKey = "";
                 return;
             }
             if (noclip) {
@@ -242,6 +247,18 @@ public final class PortalFlight implements ClientModInitializer {
             }
             if (autoSprint && !noclip && !freecam && !player.isShiftKeyDown() && player.getVehicle() == null && client.options.keyUp.isDown()) {
                 player.setSprinting(true);
+            }
+            // Record only positions actually sent to this client. The tab list
+            // supplies names, not coordinates. Never invent hidden players' positions.
+            String observedWorld = client.level.dimension().toString();
+            if (!observedWorld.equals(lastSeenWorldKey)) {
+                lastSeenPlayerPositions.clear();
+                lastSeenWorldKey = observedWorld;
+            }
+            for (Player observed : client.level.players()) {
+                if (observed != player && !observed.isRemoved()) {
+                    lastSeenPlayerPositions.put(observed.getUUID(), observed.position());
+                }
             }
             // Refresh an inexpensive cache of only client-loaded containers.
             // Rendering uses this cache rather than scanning the world every frame.
@@ -761,6 +778,10 @@ public final class PortalFlight implements ClientModInitializer {
     /** Fly to a client-visible player's current coordinates at up to 50,000 blocks/s.
      * This is movement, not teleportation; the server may reject it.
      */
+    public static Vec3 getLastSeenPlayerPosition(UUID playerId) {
+        return lastSeenPlayerPositions.get(playerId);
+    }
+
     public static boolean startPlayerTravel(double x, double y, double z) {
         if (!startCoordinateFlight(x, y, z)) return false;
         highSpeedPlayerTravel = true;
