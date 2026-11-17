@@ -20,6 +20,12 @@ All are optional and disabled by default. The movement batch avoids overriding P
 
 **Flying-player hit reliability update:** Client-side attack attempts were already uncapped, so there was no higher reach number to set. Instead, mace re-lock now aims only about **3.4 blocks above** and **0.85 blocks beside** the target rather than 6 blocks above, reducing distance at the moment of an attack. If the mace is charged and the target is within 4.5 blocks, Orbit Combat can try an ordinary hit even without a complete smash dive, preventing endless missed attempts against flying opponents. Server attack-range checks, damage rules and teleport acceptance are unchanged. Actual longer reach cannot be granted by the client alone.
 
+## High-speed mace smash and smooth camera
+
+Orbit Combat's mace mode now **launches about 12 blocks above the predicted target position**, rises at up to **3.5 blocks/tick**, then dives toward the target at up to **7 blocks/tick** (up to 140 blocks/sec at 20 TPS). While diving it pursues a flying target horizontally and **does not send re-lock teleports**, so the player's fall distance can accumulate. On a successful-looking descent, the client attempts a fully charged mace attack; actual smash damage, server-accepted velocities, and hit range are server-controlled. The previous close-range ordinary-mace fallback was removed in favor of prioritizing the aerial smash.
+
+The combat camera now turns at no more than **6 degrees yaw and 4 degrees pitch per tick** instead of snapping by up to 90/70 degrees. Rapid location teleports can still make the camera's *position* jump; this change primarily smooths the viewing direction. The implementation has not yet been verified in-game.
+
 ## Orbit Combat — fast charged mace dives and predictive aim
 
 **Test on mobs:** Open **Right Ctrl → Combat**, enable **Target Mobs** and **Orbit Combat** (or press **F12** to toggle Orbit Combat). With Target Mobs ON, the orbit locks onto the nearest currently client-loaded mob (such as a zombie, skeleton, or cow) and uses the same snap, tracking, orbit, and charged mace dive routines. Turning Target Mobs OFF restores player-only targeting; changing modes clears the old target lock. This is an exclusive target mode, not both players and mobs simultaneously. Attack range, movement and damage remain server-controlled.
