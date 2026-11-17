@@ -84,10 +84,10 @@ public final class PortalFlight implements ClientModInitializer {
     private static final double ORBIT_SPEED = 64.0;
     private static final double ORBIT_ACCELERATION = 0.20;
     private static final double ORBIT_MAX_HORIZONTAL_SPEED = 64.0;
-    // Shorter mace setup keeps airborne targets close enough for actual hits.
-    private static final double ORBIT_DIVE_HEIGHT = 3.4;
-    private static final double ORBIT_DIVE_ASCEND_SPEED = 1.20;
-    private static final double ORBIT_DIVE_DESCEND_SPEED = 1.65;
+    // A high launch followed by a very fast dive for mace smash attempts.
+    private static final double ORBIT_DIVE_HEIGHT = 12.0;
+    private static final double ORBIT_DIVE_ASCEND_SPEED = 3.5;
+    private static final double ORBIT_DIVE_DESCEND_SPEED = 7.0;
     private static final double ORBIT_RADIUS = 3.7;
     private static final double COMBAT_VERTICAL_SPEED = 0.42;
     private static final double NOCLIP_SPEED = 0.55;
@@ -644,9 +644,11 @@ public final class PortalFlight implements ClientModInitializer {
                             orbitDiving = true;
                         }
                         if (orbitDiving) {
+                            // Do not reset fallDistance while diving: the
+                            // server determines whether the hit is a smash.
                             player.setNoGravity(false);
                             vertical = -Math.min(ORBIT_DIVE_DESCEND_SPEED,
-                                    Math.max(0.55, (heightAboveTarget + 1.0) * 0.32));
+                                    Math.max(2.5, heightAboveTarget * 0.85));
                             if (heightAboveTarget < -0.8 || player.onGround()) {
                                 orbitDiving = false;
                                 orbitDiveRecoveryTicks = 3;
@@ -654,7 +656,7 @@ public final class PortalFlight implements ClientModInitializer {
                         } else {
                             player.setNoGravity(true);
                             vertical = Math.max(-0.10, Math.min(ORBIT_DIVE_ASCEND_SPEED,
-                                    (predictedTarget.y + ORBIT_DIVE_HEIGHT - player.getY()) * 0.45));
+                                    (predictedTarget.y + ORBIT_DIVE_HEIGHT - player.getY()) * 0.65));
                             player.fallDistance = 0;
                         }
                     } else {
@@ -683,7 +685,7 @@ public final class PortalFlight implements ClientModInitializer {
                     Vec3 wantedVelocity = new Vec3(horizontal.x, vertical, horizontal.z);
                     Vec3 velocityDifference = wantedVelocity.subtract(orbitSmoothedVelocity);
                     double accelerationLimit = wieldingMace
-                            ? (orbitDiving ? 4.0 : 1.6) : ORBIT_ACCELERATION;
+                            ? (orbitDiving ? 8.0 : 4.0) : ORBIT_ACCELERATION;
                     if (velocityDifference.lengthSqr() > accelerationLimit * accelerationLimit) {
                         velocityDifference = velocityDifference.normalize().scale(accelerationLimit);
                     }
@@ -703,8 +705,10 @@ public final class PortalFlight implements ClientModInitializer {
                         float desiredPitch = (float) -Math.toDegrees(Math.atan2(aim.y, flatAim));
                         float yawDifference = (desiredYaw - player.getYRot() + 540.0f) % 360.0f - 180.0f;
                         float pitchDifference = desiredPitch - player.getXRot();
-                        player.setYRot(player.getYRot() + Math.max(-90.0f, Math.min(90.0f, yawDifference)));
-                        player.setXRot(player.getXRot() + Math.max(-70.0f, Math.min(70.0f, pitchDifference)));
+                        // Gentle camera tracking avoids violent view snapping
+                        // when the target changes direction or the mace dives.
+                        player.setYRot(player.getYRot() + Math.max(-6.0f, Math.min(6.0f, yawDifference)));
+                        player.setXRot(player.getXRot() + Math.max(-4.0f, Math.min(4.0f, pitchDifference)));
                     }
 
                     // Never limit the attack packet by client distance, but
@@ -716,8 +720,7 @@ public final class PortalFlight implements ClientModInitializer {
                             && !player.onGround()
                             && player.getDeltaMovement().y < -0.10
                             && player.fallDistance > 1.5f;
-                    boolean maceReady = !wieldingMace || descendingSmash
-                            || player.distanceToSqr(target) < 4.5 * 4.5;
+                    boolean maceReady = !wieldingMace || descendingSmash;
                     if (player.hasLineOfSight(target)
                             && maceReady && orbitAttackCooldownTicks == 0
                             && player.getAttackStrengthScale(0.0f) >= 0.99f) {
@@ -1354,9 +1357,8 @@ public final class PortalFlight implements ClientModInitializer {
         Vec3 lateral = player.position().subtract(target.position());
         lateral = new Vec3(lateral.x, 0, lateral.z);
         if (lateral.lengthSqr() < 0.01) lateral = new Vec3(1, 0, 0);
-        // Position closer to the opponent than the old 3.7-block ring.
-        // In a mace cycle aim almost directly overhead to keep a moving
-        // target within attack reach as the dive begins.
+        // For a mace, reposition high above the target before the dive.
+        // Disable snap attempts during the dive so fall distance accumulates.
         boolean mace = player.getMainHandItem().is(Items.MACE);
         double sideOffset = mace ? 0.85 : 1.15;
         Vec3 destination = predictedTarget.add(lateral.normalize().scale(sideOffset))
