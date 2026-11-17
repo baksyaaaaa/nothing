@@ -13,13 +13,13 @@ import net.minecraft.network.chat.Component;
 public final class PortalFlightMenuScreen extends Screen {
     private static final String[] CATEGORIES = {"Movement", "Render", "Combat", "Utility"};
     private static final String[][] MODULE_IDS = {
-        {"fly", "speed", "boat", "swim", "noclip", "sprint"},
+        {"fly", "speed", "boat", "swim", "noclip", "sprint", "clicktp"},
         {"freecam", "players", "mobs", "tracers", "storage"},
         {"orbit"},
         {"nofall", "hunger", "privacy", "portal"}
     };
     private static final String[][] MODULE_NAMES = {
-        {"Fly", "Speed", "Boat Fly", "Swim Boost", "Noclip", "Auto Sprint"},
+        {"Fly", "Speed", "Boat Fly", "Swim Boost", "Noclip", "Auto Sprint", "ClickTP (R-Click)"},
         {"Freecam", "Player ESP", "Mob ESP", "ESP Tracers", "Storage ESP"},
         {"Orbit Combat"},
         {"No Fall", "Hunger Saver", "Spectator Privacy", "Portal Locator"}
