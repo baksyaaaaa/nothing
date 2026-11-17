@@ -62,7 +62,7 @@ Open **Right Ctrl → Movement → Fly to Player** to see online player names fr
 
 ## Teleport to XYZ (experimental)
 
-Open **Right Ctrl → Movement → Coordinate Flight Settings** (or Utility → Coordinate Flight), enter X/Y/Z, and press **TP to Coordinates (Instant Attempt)** instead of **Fly to Coordinates**. This immediately sends a position packet requesting those coordinates, without following the climb/cruise/descent route. The client moves there optimistically, but the server can reject the position and rubber-band you; no OP permissions or /tp commands are used. Coordinates are validated to Minecraft's world border range and reasonable vertical bounds.
+Open **Right Ctrl → Movement → Coordinate Flight Settings** (or Utility → Coordinate Flight), enter X/Y/Z, and press **TP to Coordinates (Instant Attempt)** instead of **Fly to Coordinates**. This immediately sends a position packet requesting those coordinates, without following the climb/cruise/descent route. The client moves there optimistically, but the server can reject the position and rubber-band you. If the client is not near the destination after about two seconds, PortalFlight automatically falls back to normal climb/cruise/descent flight and reports the switch. This does not bypass server movement validation; no OP permissions or /tp commands are used. Coordinates are validated to Minecraft's world border range and reasonable vertical bounds.
 
 ## Coordinate Flight autopilot
 
