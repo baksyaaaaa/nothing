@@ -30,6 +30,10 @@ All are optional and disabled by default. The movement batch avoids overriding P
 
 **Flying-player hit reliability update:** Client-side attack attempts were already uncapped, so there was no higher reach number to set. Instead, mace re-lock now aims only about **3.4 blocks above** and **0.85 blocks beside** the target rather than 6 blocks above, reducing distance at the moment of an attack. If the mace is charged and the target is within 4.5 blocks, Orbit Combat can try an ordinary hit even without a complete smash dive, preventing endless missed attempts against flying opponents. Server attack-range checks, damage rules and teleport acceptance are unchanged. Actual longer reach cannot be granted by the client alone.
 
+## Adaptive Orbit Combat aim
+
+Orbit Combat now aims at the **center of the target's collision box** instead of its eyes. It blends between current and predicted positions: little or no lead at close range, more lead while the target is distant, and reduced lead during a close-range mace dive. Camera tracking is **error-proportional** with capped movement (**14° yaw, 10° pitch per tick**) so small changes stay smooth while large turns catch up faster. The client does not alter the server's damage or reach checks.
+
 ## High-speed mace smash and smooth camera
 
 Orbit Combat's mace mode now **launches about 12 blocks above the predicted target position**, rises at up to **3.5 blocks/tick**, then dives toward the target at up to **7 blocks/tick** (up to 140 blocks/sec at 20 TPS). While diving it pursues a flying target horizontally and **does not send re-lock teleports**, so the player's fall distance can accumulate. On a successful-looking descent, the client attempts a fully charged mace attack; actual smash damage, server-accepted velocities, and hit range are server-controlled. The previous close-range ordinary-mace fallback was removed in favor of prioritizing the aerial smash.
