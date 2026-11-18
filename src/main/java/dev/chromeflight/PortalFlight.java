@@ -172,12 +172,20 @@ public final class PortalFlight implements ClientModInitializer {
                     if (!mc.level.hasChunkAt(pos)) continue;
                     var state = mc.level.getBlockState(pos);
                     if (!isStorageBlock(state)) continue;
-                    int red = state.is(Blocks.BARREL) ? 255 : 255;
-                    int green = state.is(Blocks.BARREL) ? 190 : 215;
-                    int blue = state.is(Blocks.BARREL) ? 65 : 40;
+                    // Storage gets warm amber tracers; barrel boxes use a
+                    // slightly darker variant to distinguish container types.
+                    int red = 255;
+                    int green = state.is(Blocks.BARREL) ? 175 : 215;
+                    int blue = state.is(Blocks.BARREL) ? 45 : 65;
                     AABB bounds = new AABB(pos).inflate(0.015)
                             .move(-camera.x, -camera.y, -camera.z);
                     drawEspBox(lines, pose, bounds, red, green, blue);
+                    if (espTracers) {
+                        Vec3 from = tracerStart.subtract(camera);
+                        Vec3 target = Vec3.atCenterOf(pos).subtract(camera);
+                        drawEspLine(lines, pose, from.x, from.y, from.z,
+                                target.x, target.y, target.z, red, green, blue);
+                    }
                 }
             }
             if (!playerEsp && !mobEsp) return;
@@ -186,9 +194,11 @@ public final class PortalFlight implements ClientModInitializer {
                 boolean isPlayer = entity instanceof Player;
                 if (!(isPlayer ? playerEsp : mobEsp)) continue;
                 if (entity.distanceToSqr(mc.player) > 96.0 * 96.0) continue;
-                int red = isPlayer ? 50 : 255;
-                int green = isPlayer ? 225 : 170;
-                int blue = isPlayer ? 255 : 50;
+                // Player ESP: bright cyan; Mob ESP: lime green.
+                // Storage ESP: amber (configured above).
+                int red = isPlayer ? 50 : 110;
+                int green = isPlayer ? 225 : 255;
+                int blue = isPlayer ? 255 : 95;
                 // Bounding box is world-space; translate to camera-relative space.
                 AABB bounds = entity.getBoundingBox().inflate(0.04).move(-camera.x, -camera.y, -camera.z);
                 drawEspBox(lines, pose, bounds, red, green, blue);
