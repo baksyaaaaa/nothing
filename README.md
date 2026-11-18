@@ -2,6 +2,16 @@
 
 Client-side Minecraft utility mod source project.
 
+## Color-coded ESP tracers
+
+With **Tracers** enabled (F11 or Right Ctrl → Render → Tracers), PortalFlight draws camera-to-target lines for **every enabled ESP category**, not just players:
+
+- **Player ESP** (F7): cyan outlines and cyan tracers for server-visible players
+- **Mob ESP** (F8): lime-green outlines and lime-green tracers for client-loaded living non-player entities
+- **Storage ESP** (F9): amber/orange outlines and tracers to nearby scanned containers (barrels use a deeper orange)
+
+Each category's ESP switch controls whether its own outlines and tracer lines render. The main **Tracers** switch controls the lines independently of ESP outlines. Player/mob ESP still uses its existing 96-block render cutoff, and storage results are limited to the existing local scan radius and loaded chunks; colors do not extend the server's tracking range.
+
 ## New ESP and utility modules
 
 These are original PortalFlight implementations inspired by common functionality in Anubis, Meteor and Krypton; no third-party client source code was copied. Entity ESP outlines only entities the server sends to your client. Storage ESP draws wireframe boxes around nearby client-loaded chests, trapped chests, barrels and Ender Chests (24-block horizontal / 12-block vertical scan); it is not guaranteed to render through walls with the current line render pass. No auto-combat or anti-cheat bypass added.
