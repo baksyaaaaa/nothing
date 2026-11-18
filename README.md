@@ -30,6 +30,12 @@ All are optional and disabled by default. The movement batch avoids overriding P
 
 **Flying-player hit reliability update:** Client-side attack attempts were already uncapped, so there was no higher reach number to set. Instead, mace re-lock now aims only about **3.4 blocks above** and **0.85 blocks beside** the target rather than 6 blocks above, reducing distance at the moment of an attack. If the mace is charged and the target is within 4.5 blocks, Orbit Combat can try an ordinary hit even without a complete smash dive, preventing endless missed attempts against flying opponents. Server attack-range checks, damage rules and teleport acceptance are unchanged. Actual longer reach cannot be granted by the client alone.
 
+## Weapon Reach
+
+Use **Right Ctrl → Combat → Weapon Reach** to enable extended range for **ordinary manual attacks** (not just Orbit Combat). The separate **Weapon Reach distance** button cycles **6 / 12 / 24 / 48 blocks**, default **12**. This applies a temporary modifier to the local player's entity-interaction-range attribute and removes only that modifier when disabled. It does not permanently modify the player's attributes or change the server's settings.
+
+This extends **client-side crosshair targeting and attack attempts**. **The server still controls real weapon reach and hit registration**. There is no guarantee a player beyond the server's attack range will take damage. Weapons with their own attack-range components may behave differently.
+
 ## Horizontal circling around targets
 
 When **Orbit Combat** uses an ordinary weapon, re-lock teleports now advance around a **3.7-block horizontal circle** (rather than repeatedly snapping above the opponent or to the same side). The orbital path follows the target's predicted X/Z position and stays about **0.3 blocks above their feet**, so it moves **around** the target rather than on top of them. The position angle advances on each successful snap while the client has the target loaded. With a **mace**, the existing high launch (12 blocks above) and fast descending smash are preserved as a distinct attack pattern. Server movement validation and collision checks still apply.
