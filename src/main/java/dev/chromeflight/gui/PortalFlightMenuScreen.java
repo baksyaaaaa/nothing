@@ -20,7 +20,7 @@ public final class PortalFlightMenuScreen extends Screen {
     private static final String[] CATEGORIES =
             {"Combat", "Movement", "Render", "Player", "World", "Misc"};
     private static final String[][] IDS = {
-            {"orbit", "orbitmobs", "autototem", "autoleave"},
+            {"orbit", "orbitmobs", "reach", "autototem", "autoleave"},
             {"fly", "speed", "boat", "swim", "noclip", "sprint",
              "autowalk", "autojump", "highjump", "fastfall", "waterwalk",
              "autosneak", "noslow", "elytraboost", "nofall"},
@@ -30,7 +30,7 @@ public final class PortalFlightMenuScreen extends Screen {
             {}
     };
     private static final String[][] NAMES = {
-            {"Orbit Combat", "Target Mobs", "AutoTotem", "AutoLeave"},
+            {"Orbit Combat", "Target Mobs", "Weapon Reach", "AutoTotem", "AutoLeave"},
             {"Fly", "Speed", "Boat Fly", "Swim Boost", "Noclip", "Auto Sprint",
              "AutoWalk", "AutoJump", "HighJump", "FastFall", "WaterWalk",
              "AutoSneak", "NoSlow", "Elytra Boost", "NoFall"},
@@ -104,7 +104,7 @@ public final class PortalFlightMenuScreen extends Screen {
         moduleTitleY = searchY + 23;
         int moduleStart = moduleTitleY + 12;
         int footerY = panelY + panelHeight - 15;
-        int actionCount = category == 1 ? 2 : (category == 0 || category == 5 ? 1 : 0);
+        int actionCount = category == 1 || category == 0 ? 2 : (category == 5 ? 1 : 0);
         int actionHeight = 19;
         int actionGap = 3;
         int actionStart = footerY - 5 - actionCount * (actionHeight + actionGap);
@@ -156,10 +156,15 @@ public final class PortalFlightMenuScreen extends Screen {
                     }).bounds(panelX + 8, actionStart + actionHeight + actionGap,
                             inner, actionHeight).build());
         } else if (category == 0) {
+            addRenderableWidget(Button.builder(reachDistanceLabel(), btn -> {
+                PortalFlight.cycleWeaponReachDistance();
+                btn.setMessage(reachDistanceLabel());
+            }).bounds(panelX + 8, actionStart, inner, actionHeight).build());
             addRenderableWidget(Button.builder(autoLeaveThresholdLabel(), btn -> {
                 PortalFlight.toggleAutoLeaveThreshold();
                 btn.setMessage(autoLeaveThresholdLabel());
-            }).bounds(panelX + 8, actionStart, inner, actionHeight).build());
+            }).bounds(panelX + 8, actionStart + actionHeight + actionGap,
+                    inner, actionHeight).build());
         } else if (category == 5) {
             addRenderableWidget(Button.builder(Component.literal("Staff Watch"),
                     btn -> {
@@ -189,6 +194,11 @@ public final class PortalFlightMenuScreen extends Screen {
 
     private static Component moduleLabel(String id, String name) {
         return Component.literal((PortalFlight.isModuleEnabled(id) ? "[ON] " : "[OFF] ") + name);
+    }
+
+    private static Component reachDistanceLabel() {
+        return Component.literal("Weapon Reach distance: "
+                + (int) PortalFlight.getWeaponReachDistance() + " blocks");
     }
 
     private static Component autoLeaveThresholdLabel() {
