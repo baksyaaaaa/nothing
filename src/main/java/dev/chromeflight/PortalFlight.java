@@ -99,9 +99,12 @@ public final class PortalFlight implements ClientModInitializer {
     // Minecraft health points: 1 HP = half a heart, 2 HP = one heart.
     private static float autoLeaveThreshold = 2.0f;
     private static final List<BlockPos> nearbyStorage = new ArrayList<>();
-    private static final int STORAGE_RADIUS = 24;
-    private static final int STORAGE_VERTICAL_RADIUS = 12;
-    private static final int STORAGE_MAX_RESULTS = 256;
+    private static final int STORAGE_RADIUS = 64;
+    private static final int STORAGE_VERTICAL_RADIUS = 32;
+    private static final int STORAGE_MAX_RESULTS = 1024;
+    private static final int STORAGE_SCAN_BUDGET = 9000;
+    private static int storageScanIndex;
+    private static boolean storageScanInProgress;
     private static BlockPos lastStorageScanOrigin;
     private static String storageWorldKey = "";
     private static int spectatorCheckTick;
@@ -193,7 +196,8 @@ public final class PortalFlight implements ClientModInitializer {
                 if (entity == mc.player || !(entity instanceof LivingEntity) || !entity.isAlive()) continue;
                 boolean isPlayer = entity instanceof Player;
                 if (!(isPlayer ? playerEsp : mobEsp)) continue;
-                if (entity.distanceToSqr(mc.player) > 96.0 * 96.0) continue;
+                // Render every tracked living entity received by the client.
+                // The server still controls which distant entities exist locally.
                 // Player ESP: bright cyan; Mob ESP: lime green.
                 // Storage ESP: amber (configured above).
                 int red = isPlayer ? 50 : 110;
@@ -263,6 +267,8 @@ public final class PortalFlight implements ClientModInitializer {
                 storageFinder = !storageFinder;
                 nearbyStorage.clear();
                 lastStorageScanOrigin = null;
+                storageScanInProgress = false;
+                storageScanIndex = 0;
                 message(client, "Storage ESP " + (storageFinder ? "ON" : "OFF"));
             }
             while (autoSprintKey.consumeClick()) { autoSprint = !autoSprint; message(client, "Auto Sprint " + (autoSprint ? "ON" : "OFF")); }
@@ -291,6 +297,7 @@ public final class PortalFlight implements ClientModInitializer {
                 coordinateFlightLastPosition = null; coordinateFlightStuckTicks = 0;
                 elytraPacketTicks = 0;
                 nearbyStorage.clear(); lastStorageScanOrigin = null; storageWorldKey = "";
+                storageScanInProgress = false; storageScanIndex = 0;
                 lastSeenPlayerPositions.clear(); lastSeenWorldKey = "";
                 cruisePhaseApplied = false;
                 pendingTeleportDestination = null;
@@ -456,32 +463,49 @@ public final class PortalFlight implements ClientModInitializer {
                     lastSeenPlayerPositions.put(observed.getUUID(), observed.position());
                 }
             }
-            // Refresh an inexpensive cache of only client-loaded containers.
-            // Rendering uses this cache rather than scanning the world every frame.
+            // Incremental search across loaded chunks only. A much larger
+            // radius must not stall a tick by scanning >1 million blocks at once.
             if (storageFinder) {
                 BlockPos origin = player.blockPosition();
                 String dimensionKey = client.level.dimension().toString();
                 boolean movedFar = lastStorageScanOrigin == null
-                        || origin.distSqr(lastStorageScanOrigin) > 64.0;
+                        || origin.distSqr(lastStorageScanOrigin) > 16.0 * 16.0;
                 if (!dimensionKey.equals(storageWorldKey) || movedFar
-                        || ++storageTick >= 40) {
+                        || (!storageScanInProgress && ++storageTick >= 120)) {
                     storageTick = 0;
                     storageWorldKey = dimensionKey;
                     lastStorageScanOrigin = origin.immutable();
                     nearbyStorage.clear();
+                    storageScanIndex = 0;
+                    storageScanInProgress = true;
+                }
+                if (storageScanInProgress && lastStorageScanOrigin != null) {
+                    int diameter = STORAGE_RADIUS * 2 + 1;
+                    int height = STORAGE_VERTICAL_RADIUS * 2 + 1;
+                    int total = diameter * diameter * height;
+                    int checked = 0;
                     BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
-                    for (int dx = -STORAGE_RADIUS; dx <= STORAGE_RADIUS; dx++) {
-                        for (int dz = -STORAGE_RADIUS; dz <= STORAGE_RADIUS; dz++) {
-                            for (int dy = -STORAGE_VERTICAL_RADIUS; dy <= STORAGE_VERTICAL_RADIUS; dy++) {
-                                cursor.set(origin.getX() + dx, origin.getY() + dy, origin.getZ() + dz);
-                                if (!client.level.hasChunkAt(cursor)) continue;
-                                if (!isStorageBlock(client.level.getBlockState(cursor))) continue;
-                                nearbyStorage.add(cursor.immutable());
-                                if (nearbyStorage.size() >= STORAGE_MAX_RESULTS) break;
-                            }
-                            if (nearbyStorage.size() >= STORAGE_MAX_RESULTS) break;
+                    while (storageScanIndex < total && checked < STORAGE_SCAN_BUDGET
+                            && nearbyStorage.size() < STORAGE_MAX_RESULTS) {
+                        int index = storageScanIndex++;
+                        checked++;
+                        int dy = index % height - STORAGE_VERTICAL_RADIUS;
+                        int dz = (index / height) % diameter - STORAGE_RADIUS;
+                        int dx = index / (height * diameter) - STORAGE_RADIUS;
+                        // Skip corners outside the requested horizontal radius.
+                        if (dx * dx + dz * dz > STORAGE_RADIUS * STORAGE_RADIUS) continue;
+                        cursor.set(lastStorageScanOrigin.getX() + dx,
+                                lastStorageScanOrigin.getY() + dy,
+                                lastStorageScanOrigin.getZ() + dz);
+                        if (!client.level.hasChunkAt(cursor)) continue;
+                        if (isStorageBlock(client.level.getBlockState(cursor))) {
+                            nearbyStorage.add(cursor.immutable());
                         }
-                        if (nearbyStorage.size() >= STORAGE_MAX_RESULTS) break;
+                    }
+                    if (storageScanIndex >= total
+                            || nearbyStorage.size() >= STORAGE_MAX_RESULTS) {
+                        storageScanInProgress = false;
+                        storageTick = 0;
                     }
                 }
             }
