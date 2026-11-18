@@ -27,6 +27,10 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 import java.util.UUID;
@@ -41,7 +45,7 @@ import org.lwjgl.glfw.GLFW;
 
 public final class PortalFlight implements ClientModInitializer {
     private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey, swimKey, boatDescendKey, playerEspKey, mobEspKey, storageFinderKey, autoSprintKey, tracerKey, orbitCombatKey, noclipKey, clickGuiKey;
-    private static boolean orbitTargetMobs, speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat, noclip, autoTotem, autoLeave, autoWalk, autoJump, highJump, fastFall, waterWalk, autoSneak, noSlow, elytraBoost;
+    private static boolean weaponReach, orbitTargetMobs, speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat, noclip, autoTotem, autoLeave, autoWalk, autoJump, highJump, fastFall, waterWalk, autoSneak, noSlow, elytraBoost;
     public static boolean freecam;
     public static Vec3 freecamPosition = Vec3.ZERO;
     public static Vec3 freecamPreviousPosition = Vec3.ZERO;
@@ -72,6 +76,9 @@ public final class PortalFlight implements ClientModInitializer {
     private static final double SWIM_BOOST_SPEED = 1.65;
     private static int scanTick;
     private static int combatAttackTicks;
+    private static final Identifier WEAPON_REACH_MODIFIER = Identifier.fromNamespaceAndPath("portalflight", "weapon_reach");
+    private static final double[] WEAPON_REACH_VALUES = {6.0, 12.0, 24.0, 48.0};
+    private static int weaponReachIndex = 1;
     private static int orbitAttackCooldownTicks;
     private static boolean orbitDiving;
     private static int orbitDiveRecoveryTicks;
@@ -310,6 +317,10 @@ public final class PortalFlight implements ClientModInitializer {
                 autoJumpIntervalTicks = 0;
                 return;
             }
+            // Refresh the client-side entity reach attribute for vanilla
+            // crosshair target selection and normal attack input. A server
+            // can still reject any hit beyond its own accepted range.
+            updateWeaponReach(player);
             // AutoLeave is checked before combat and movement so that low-health
             // disconnects are not delayed by other movement modules.
             if (autoLeave && player.isAlive() && player.getHealth() > 0
@@ -1281,6 +1292,7 @@ public final class PortalFlight implements ClientModInitializer {
             case "tracers" -> espTracers;
             case "storage" -> storageFinder;
             case "orbit" -> orbitCombat;
+            case "reach" -> weaponReach;
             case "orbitmobs" -> orbitTargetMobs;
             case "nofall" -> noFall;
             case "hunger" -> hungerSaver;
@@ -1337,6 +1349,10 @@ public final class PortalFlight implements ClientModInitializer {
                 orbitDiving = false;
                 orbitSmoothedVelocity = Vec3.ZERO;
             }
+            case "reach" -> {
+                weaponReach = !weaponReach;
+                if (mc.player != null) updateWeaponReach(mc.player);
+            }
             case "orbit" -> {
                 orbitCombat = !orbitCombat;
                 combatAttackTicks = 0;
@@ -1364,6 +1380,31 @@ public final class PortalFlight implements ClientModInitializer {
             case "autosneak" -> { autoSneak = !autoSneak; if (!autoSneak && mc.player != null && !mc.options.keyShift.isDown()) mc.player.setShiftKeyDown(false); }
             case "noslow" -> noSlow = !noSlow;
             case "elytraboost" -> elytraBoost = !elytraBoost;
+        }
+    }
+
+    public static double getWeaponReachDistance() {
+        return WEAPON_REACH_VALUES[weaponReachIndex];
+    }
+
+    public static void cycleWeaponReachDistance() {
+        weaponReachIndex = (weaponReachIndex + 1) % WEAPON_REACH_VALUES.length;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player != null) updateWeaponReach(mc.player);
+    }
+
+    private static void updateWeaponReach(LocalPlayer player) {
+        AttributeInstance attribute = player.getAttribute(Attributes.ENTITY_INTERACTION_RANGE);
+        if (attribute == null) return;
+        AttributeModifier existing = attribute.getModifier(WEAPON_REACH_MODIFIER);
+        if (!weaponReach) {
+            if (existing != null) attribute.removeModifier(WEAPON_REACH_MODIFIER);
+            return;
+        }
+        double additionalReach = getWeaponReachDistance() - 3.0;
+        if (existing == null || Math.abs(existing.amount() - additionalReach) > 0.001) {
+            attribute.addOrUpdateTransientModifier(new AttributeModifier(
+                    WEAPON_REACH_MODIFIER, additionalReach, AttributeModifier.Operation.ADD_VALUE));
         }
     }
 
