@@ -80,6 +80,8 @@ public final class PortalFlight implements ClientModInitializer {
     private static UUID orbitLastTargetId;
     private static UUID combatTargetId;
     private static int combatOrbitDirection = 1;
+    private static double orbitAngleRadians;
+    private static final double ORBIT_STEP_RADIANS = 0.19;
     // Maximum orbit movement speed: 1280 blocks/sec at 20 ticks/sec.
     private static final double ORBIT_SPEED = 64.0;
     private static final double ORBIT_ACCELERATION = 0.20;
@@ -602,6 +604,8 @@ public final class PortalFlight implements ClientModInitializer {
                     UUID newId = target == null ? null : target.getUUID();
                     if (newId != null && !newId.equals(combatTargetId)) {
                         combatOrbitDirection = -combatOrbitDirection;
+                        orbitAngleRadians = Math.atan2(player.getZ() - target.getZ(),
+                                player.getX() - target.getX());
                         orbitDiving = false;
                         orbitDiveRecoveryTicks = 0;
                         orbitSmoothedVelocity = player.getDeltaMovement();
@@ -696,11 +700,12 @@ public final class PortalFlight implements ClientModInitializer {
                     } else {
                         orbitDiving = false;
                         player.setNoGravity(true);
-                        double cycle = Math.sin(combatAttackTicks * 0.12);
-                        double desiredHeight = target.getY() + 2.0 + cycle * 1.5;
+                        // Orbit alongside the target at roughly the same
+                        // altitude, not above their head.
+                        double desiredHeight = predictedTarget.y + 0.3;
                         vertical = Math.max(-COMBAT_VERTICAL_SPEED,
                                 Math.min(COMBAT_VERTICAL_SPEED,
-                                        (desiredHeight - player.getY()) * 0.22));
+                                        (desiredHeight - player.getY()) * 0.35));
                         player.fallDistance = 0;
                     }
                     // During a mace dive actively track the predicted flight path,
@@ -1400,15 +1405,16 @@ public final class PortalFlight implements ClientModInitializer {
             LivingEntity target, Vec3 predictedTarget) {
         if (client.getConnection() == null || client.level == null
                 || target.isRemoved() || !target.isAlive()) return false;
-        Vec3 lateral = player.position().subtract(target.position());
-        lateral = new Vec3(lateral.x, 0, lateral.z);
-        if (lateral.lengthSqr() < 0.01) lateral = new Vec3(1, 0, 0);
-        // For a mace, reposition high above the target before the dive.
-        // Disable snap attempts during the dive so fall distance accumulates.
+        // Rotate the snap destination around the target instead of repeatedly
+        // teleporting to the same spot above/alongside them. The non-mace
+        // orbit stays at target height; mace mode retains its high launch.
         boolean mace = player.getMainHandItem().is(Items.MACE);
-        double sideOffset = mace ? 0.85 : 1.15;
-        Vec3 destination = predictedTarget.add(lateral.normalize().scale(sideOffset))
-                .add(0, mace ? ORBIT_DIVE_HEIGHT : 0.5, 0);
+        double angle = orbitAngleRadians + combatOrbitDirection * ORBIT_STEP_RADIANS;
+        double offset = mace ? 0.85 : ORBIT_RADIUS;
+        Vec3 destination = predictedTarget.add(
+                Math.cos(angle) * offset,
+                mace ? ORBIT_DIVE_HEIGHT : 0.3,
+                Math.sin(angle) * offset);
         if (player.position().distanceToSqr(destination) < 0.20 * 0.20) {
             return false; // Avoid resending identical teleports.
         }
@@ -1418,6 +1424,7 @@ public final class PortalFlight implements ClientModInitializer {
                         .getCollisionShape(client.level, feet).isEmpty()
                 || !client.level.getBlockState(feet.above())
                         .getCollisionShape(client.level, feet.above()).isEmpty()) return false;
+        orbitAngleRadians = angle;
         player.setPos(destination.x, destination.y, destination.z);
         player.setDeltaMovement(Vec3.ZERO);
         player.fallDistance = 0;
