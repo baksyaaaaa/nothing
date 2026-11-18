@@ -727,22 +727,34 @@ public final class PortalFlight implements ClientModInitializer {
                     player.setDeltaMovement(orbitSmoothedVelocity);
                     }
 
-                    // Lead moving targets with a bounded prediction; look
-                    // directly at the actual target once in close attack range.
-                    Vec3 aimPoint = player.distanceToSqr(target) < 4.5 * 4.5
-                            ? target.getEyePosition()
-                            : predictedTarget.add(0, target.getEyePosition().y - targetPosition.y, 0);
+                    // Aim at the target's hitbox instead of chasing its eyes.
+                    // Predict movement while far away, but use the current
+                    // hitbox during a close strike to avoid leading past it.
+                    double targetDistance = player.distanceTo(target);
+                    double predictionBlend = Math.max(0.0,
+                            Math.min(1.0, (targetDistance - 2.5) / 9.0));
+                    // During a quick mace dive, prioritise the live hitbox.
+                    if (wieldingMace && orbitDiving && targetDistance < 7.0) {
+                        predictionBlend *= 0.25;
+                    }
+                    Vec3 hitboxCenter = target.getBoundingBox().getCenter();
+                    Vec3 aimPoint = hitboxCenter.add(
+                            predictedTarget.subtract(targetPosition).scale(predictionBlend));
                     Vec3 aim = aimPoint.subtract(player.getEyePosition());
                     double flatAim = Math.hypot(aim.x, aim.z);
-                    if (flatAim > 0.0001) {
+                    if (aim.lengthSqr() > 0.0001) {
                         float desiredYaw = (float) Math.toDegrees(Math.atan2(-aim.x, aim.z));
                         float desiredPitch = (float) -Math.toDegrees(Math.atan2(aim.y, flatAim));
                         float yawDifference = (desiredYaw - player.getYRot() + 540.0f) % 360.0f - 180.0f;
                         float pitchDifference = desiredPitch - player.getXRot();
-                        // Gentle camera tracking avoids violent view snapping
-                        // when the target changes direction or the mace dives.
-                        player.setYRot(player.getYRot() + Math.max(-6.0f, Math.min(6.0f, yawDifference)));
-                        player.setXRot(player.getXRot() + Math.max(-4.0f, Math.min(4.0f, pitchDifference)));
+                        // Error-proportional, capped turning: small changes are
+                        // smooth, while large target dodges catch up rapidly.
+                        // Keep pitch slightly slower to avoid camera jolts.
+                        float yawStep = Math.max(-14.0f, Math.min(14.0f, yawDifference * 0.32f));
+                        float pitchStep = Math.max(-10.0f, Math.min(10.0f, pitchDifference * 0.27f));
+                        player.setYRot(player.getYRot() + yawStep);
+                        player.setXRot(Math.max(-90.0f, Math.min(90.0f,
+                                player.getXRot() + pitchStep)));
                     }
 
                     // Never limit the attack packet by client distance, but
