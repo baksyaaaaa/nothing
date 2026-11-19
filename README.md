@@ -2,6 +2,10 @@
 
 Client-side Minecraft utility mod source project.
 
+## Storage ESP reliability improvements
+
+Storage ESP now keeps the previous scan visible while refreshing instead of clearing the boxes and tracer lines for several seconds. The first scan checks nearby columns before faraway ones. It still searches a **64-block horizontal / 32-block vertical** radius incrementally across loaded chunks, and detects additional container blocks: **all shulker boxes, hoppers, droppers, dispensers, furnaces, blast furnaces, smokers, brewing stands and crafters**, in addition to chests, trapped chests, barrels and ender chests. Switching dimensions or toggling Storage ESP resets stale results. Server-hidden and unloaded containers are not available to the client. These changes are not yet compile-tested.
+
 ## Color-coded ESP tracers
 
 With **Tracers** enabled (F11 or Right Ctrl → Render → Tracers), PortalFlight draws camera-to-target lines for **every enabled ESP category**, not just players:
