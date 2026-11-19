@@ -495,6 +495,8 @@ public final class PortalFlight implements ClientModInitializer {
                         || origin.distSqr(lastStorageScanOrigin) > 16.0 * 16.0;
                 if (!dimensionKey.equals(storageWorldKey) || movedFar
                         || (!storageScanInProgress && ++storageTick >= 120)) {
+                    // Do not carry coordinates from another dimension.
+                    if (!dimensionKey.equals(storageWorldKey)) nearbyStorage.clear();
                     storageTick = 0;
                     storageWorldKey = dimensionKey;
                     lastStorageScanOrigin = origin.immutable();
@@ -1364,7 +1366,11 @@ public final class PortalFlight implements ClientModInitializer {
             case "storage" -> {
                 storageFinder = !storageFinder;
                 nearbyStorage.clear();
+                storageScanResults.clear();
                 lastStorageScanOrigin = null;
+                storageScanInProgress = false;
+                storageScanIndex = 0;
+                storageTick = 0;
             }
             case "orbitmobs" -> {
                 orbitTargetMobs = !orbitTargetMobs;
