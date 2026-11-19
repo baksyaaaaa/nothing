@@ -2,9 +2,11 @@
 
 Client-side Minecraft utility mod source project.
 
-## Storage ESP reliability improvements
+## Storage ESP range and performance
 
-Storage ESP now keeps the previous scan visible while refreshing instead of clearing the boxes and tracer lines for several seconds. The first scan checks nearby columns before faraway ones. It still searches a **64-block horizontal / 32-block vertical** radius incrementally across loaded chunks, and detects additional container blocks: **all shulker boxes, hoppers, droppers, dispensers, furnaces, blast furnaces, smokers, brewing stands and crafters**, in addition to chests, trapped chests, barrels and ender chests. Switching dimensions or toggling Storage ESP resets stale results. Server-hidden and unloaded containers are not available to the client. These changes are not yet compile-tested.
+Storage ESP now checks **loaded chunks up to 256 blocks away horizontally**, across **the full world height loaded in those chunks**. Instead of examining every block in a large radius, it reads the existing **block entity positions** from up to **24 loaded chunks per client tick**, with refreshes about every 3 seconds. It retains existing outlines/tracers during refreshes, and supports up to **4,096** detected containers.
+
+Detected storage includes chests, trapped chests, ender chests, barrels, shulker boxes, hoppers, droppers, dispensers, furnaces, blast furnaces, smokers, brewing stands, and crafters. Only storage blocks represented as loaded **block entities** are discovered. The **server's chunk/view distance remains the real limit**: containers in chunks not sent to the client cannot be detected, no matter how high the setting. These changes have not been build-tested.
 
 ## Color-coded ESP tracers
 
