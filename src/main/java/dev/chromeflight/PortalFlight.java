@@ -111,10 +111,11 @@ public final class PortalFlight implements ClientModInitializer {
     private static final List<BlockPos> nearbyStorage = new ArrayList<>();
     // Build the next scan separately so refreshes do not blank all ESP boxes.
     private static final List<BlockPos> storageScanResults = new ArrayList<>();
-    private static final int STORAGE_RADIUS = 64;
-    private static final int STORAGE_VERTICAL_RADIUS = 32;
-    private static final int STORAGE_MAX_RESULTS = 1024;
-    private static final int STORAGE_SCAN_BUDGET = 9000;
+    private static final int STORAGE_RADIUS = 256;
+    private static final int STORAGE_MAX_RESULTS = 4096;
+    // Reading 24 loaded chunk block-entity maps per tick is far cheaper
+    // than iterating every block in a 512-block-wide region.
+    private static final int STORAGE_SCAN_CHUNKS_PER_TICK = 24;
     private static int storageScanIndex;
     private static boolean storageScanInProgress;
     private static BlockPos lastStorageScanOrigin;
@@ -187,9 +188,10 @@ public final class PortalFlight implements ClientModInitializer {
                 List<BlockPos> visibleStorage = storageScanInProgress && nearbyStorage.isEmpty()
                         ? storageScanResults : nearbyStorage;
                 for (BlockPos pos : visibleStorage) {
-                    if (!mc.level.hasChunkAt(pos) || mc.player.blockPosition().distSqr(pos)
-                            > (double) (STORAGE_RADIUS * STORAGE_RADIUS
-                                    + STORAGE_VERTICAL_RADIUS * STORAGE_VERTICAL_RADIUS)) continue;
+                    double dx = pos.getX() - mc.player.getX();
+                    double dz = pos.getZ() - mc.player.getZ();
+                    if (!mc.level.hasChunkAt(pos)
+                            || dx * dx + dz * dz > STORAGE_RADIUS * STORAGE_RADIUS) continue;
                     var state = mc.level.getBlockState(pos);
                     if (!isStorageBlock(state)) continue;
                     // Storage gets warm amber tracers; barrel boxes use a
@@ -486,17 +488,18 @@ public final class PortalFlight implements ClientModInitializer {
                     lastSeenPlayerPositions.put(observed.getUUID(), observed.position());
                 }
             }
-            // Incremental search across loaded chunks only. A much larger
-            // radius must not stall a tick by scanning >1 million blocks at once.
+            // Discover storage by inspecting the block entities in already
+            // loaded chunks, rather than checking millions of individual blocks.
+            // Cover the full vertical range of each loaded chunk.
             if (storageFinder) {
                 BlockPos origin = player.blockPosition();
                 String dimensionKey = client.level.dimension().toString();
+                boolean changedWorld = !dimensionKey.equals(storageWorldKey);
                 boolean movedFar = lastStorageScanOrigin == null
                         || origin.distSqr(lastStorageScanOrigin) > 16.0 * 16.0;
-                if (!dimensionKey.equals(storageWorldKey) || movedFar
-                        || (!storageScanInProgress && ++storageTick >= 120)) {
-                    // Do not carry coordinates from another dimension.
-                    if (!dimensionKey.equals(storageWorldKey)) nearbyStorage.clear();
+                if (changedWorld || movedFar
+                        || (!storageScanInProgress && ++storageTick >= 60)) {
+                    if (changedWorld) nearbyStorage.clear();
                     storageTick = 0;
                     storageWorldKey = dimensionKey;
                     lastStorageScanOrigin = origin.immutable();
@@ -505,26 +508,33 @@ public final class PortalFlight implements ClientModInitializer {
                     storageScanInProgress = true;
                 }
                 if (storageScanInProgress && lastStorageScanOrigin != null) {
-                    int diameter = STORAGE_RADIUS * 2 + 1;
-                    int height = STORAGE_VERTICAL_RADIUS * 2 + 1;
-                    int total = diameter * diameter * height;
-                    int checked = 0;
-                    BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
-                    while (storageScanIndex < total && checked < STORAGE_SCAN_BUDGET
+                    // Radius is measured in blocks; iterate neighboring chunk
+                    // coordinates, starting in the center and moving outward.
+                    int chunkRadius = (STORAGE_RADIUS + 15) / 16;
+                    int diameter = chunkRadius * 2 + 1;
+                    int total = diameter * diameter;
+                    int originChunkX = lastStorageScanOrigin.getX() >> 4;
+                    int originChunkZ = lastStorageScanOrigin.getZ() >> 4;
+                    int scannedChunks = 0;
+                    while (storageScanIndex < total
+                            && scannedChunks < STORAGE_SCAN_CHUNKS_PER_TICK
                             && storageScanResults.size() < STORAGE_MAX_RESULTS) {
                         int index = storageScanIndex++;
-                        checked++;
-                        int dy = index % height - STORAGE_VERTICAL_RADIUS;
-                        int dz = centeredScanOffset((index / height) % diameter);
-                        int dx = centeredScanOffset(index / (height * diameter));
-                        // Skip corners outside the requested horizontal radius.
-                        if (dx * dx + dz * dz > STORAGE_RADIUS * STORAGE_RADIUS) continue;
-                        cursor.set(lastStorageScanOrigin.getX() + dx,
-                                lastStorageScanOrigin.getY() + dy,
-                                lastStorageScanOrigin.getZ() + dz);
-                        if (!client.level.hasChunkAt(cursor)) continue;
-                        if (isStorageBlock(client.level.getBlockState(cursor))) {
-                            storageScanResults.add(cursor.immutable());
+                        int chunkOffsetX = centeredScanOffset(index / diameter);
+                        int chunkOffsetZ = centeredScanOffset(index % diameter);
+                        int chunkX = originChunkX + chunkOffsetX;
+                        int chunkZ = originChunkZ + chunkOffsetZ;
+                        if (!client.level.hasChunk(chunkX, chunkZ)) continue;
+                        scannedChunks++;
+                        for (BlockPos pos : client.level.getChunk(chunkX, chunkZ)
+                                .getBlockEntities().keySet()) {
+                            double dx = pos.getX() - lastStorageScanOrigin.getX();
+                            double dz = pos.getZ() - lastStorageScanOrigin.getZ();
+                            if (dx * dx + dz * dz > STORAGE_RADIUS * STORAGE_RADIUS) continue;
+                            if (isStorageBlock(client.level.getBlockState(pos))) {
+                                storageScanResults.add(pos.immutable());
+                                if (storageScanResults.size() >= STORAGE_MAX_RESULTS) break;
+                            }
                         }
                     }
                     if (storageScanIndex >= total
