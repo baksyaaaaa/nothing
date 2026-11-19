@@ -23,6 +23,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.entity.LivingEntity;
@@ -108,6 +109,8 @@ public final class PortalFlight implements ClientModInitializer {
     // Minecraft health points: 1 HP = half a heart, 2 HP = one heart.
     private static float autoLeaveThreshold = 2.0f;
     private static final List<BlockPos> nearbyStorage = new ArrayList<>();
+    // Build the next scan separately so refreshes do not blank all ESP boxes.
+    private static final List<BlockPos> storageScanResults = new ArrayList<>();
     private static final int STORAGE_RADIUS = 64;
     private static final int STORAGE_VERTICAL_RADIUS = 32;
     private static final int STORAGE_MAX_RESULTS = 1024;
@@ -180,8 +183,13 @@ public final class PortalFlight implements ClientModInitializer {
             Vec3 tracerStart = camera.add(mc.player.getLookAngle().scale(0.65));
             if (storageFinder) {
                 // Draw client-known container blocks in world space, camera-relative.
-                for (BlockPos pos : nearbyStorage) {
-                    if (!mc.level.hasChunkAt(pos)) continue;
+                // On the very first scan, show newly found blocks immediately.
+                List<BlockPos> visibleStorage = storageScanInProgress && nearbyStorage.isEmpty()
+                        ? storageScanResults : nearbyStorage;
+                for (BlockPos pos : visibleStorage) {
+                    if (!mc.level.hasChunkAt(pos) || mc.player.blockPosition().distSqr(pos)
+                            > (double) (STORAGE_RADIUS * STORAGE_RADIUS
+                                    + STORAGE_VERTICAL_RADIUS * STORAGE_VERTICAL_RADIUS)) continue;
                     var state = mc.level.getBlockState(pos);
                     if (!isStorageBlock(state)) continue;
                     // Storage gets warm amber tracers; barrel boxes use a
@@ -275,6 +283,7 @@ public final class PortalFlight implements ClientModInitializer {
             while (storageFinderKey.consumeClick()) {
                 storageFinder = !storageFinder;
                 nearbyStorage.clear();
+                storageScanResults.clear();
                 lastStorageScanOrigin = null;
                 storageScanInProgress = false;
                 storageScanIndex = 0;
@@ -305,7 +314,8 @@ public final class PortalFlight implements ClientModInitializer {
                 coordinateDestination = null; highSpeedPlayerTravel = false;
                 coordinateFlightLastPosition = null; coordinateFlightStuckTicks = 0;
                 elytraPacketTicks = 0;
-                nearbyStorage.clear(); lastStorageScanOrigin = null; storageWorldKey = "";
+                nearbyStorage.clear(); storageScanResults.clear();
+                lastStorageScanOrigin = null; storageWorldKey = "";
                 storageScanInProgress = false; storageScanIndex = 0;
                 lastSeenPlayerPositions.clear(); lastSeenWorldKey = "";
                 cruisePhaseApplied = false;
@@ -488,7 +498,7 @@ public final class PortalFlight implements ClientModInitializer {
                     storageTick = 0;
                     storageWorldKey = dimensionKey;
                     lastStorageScanOrigin = origin.immutable();
-                    nearbyStorage.clear();
+                    storageScanResults.clear();
                     storageScanIndex = 0;
                     storageScanInProgress = true;
                 }
@@ -499,12 +509,12 @@ public final class PortalFlight implements ClientModInitializer {
                     int checked = 0;
                     BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
                     while (storageScanIndex < total && checked < STORAGE_SCAN_BUDGET
-                            && nearbyStorage.size() < STORAGE_MAX_RESULTS) {
+                            && storageScanResults.size() < STORAGE_MAX_RESULTS) {
                         int index = storageScanIndex++;
                         checked++;
                         int dy = index % height - STORAGE_VERTICAL_RADIUS;
-                        int dz = (index / height) % diameter - STORAGE_RADIUS;
-                        int dx = index / (height * diameter) - STORAGE_RADIUS;
+                        int dz = centeredScanOffset((index / height) % diameter);
+                        int dx = centeredScanOffset(index / (height * diameter));
                         // Skip corners outside the requested horizontal radius.
                         if (dx * dx + dz * dz > STORAGE_RADIUS * STORAGE_RADIUS) continue;
                         cursor.set(lastStorageScanOrigin.getX() + dx,
@@ -512,11 +522,13 @@ public final class PortalFlight implements ClientModInitializer {
                                 lastStorageScanOrigin.getZ() + dz);
                         if (!client.level.hasChunkAt(cursor)) continue;
                         if (isStorageBlock(client.level.getBlockState(cursor))) {
-                            nearbyStorage.add(cursor.immutable());
+                            storageScanResults.add(cursor.immutable());
                         }
                     }
                     if (storageScanIndex >= total
-                            || nearbyStorage.size() >= STORAGE_MAX_RESULTS) {
+                            || storageScanResults.size() >= STORAGE_MAX_RESULTS) {
+                        nearbyStorage.clear();
+                        nearbyStorage.addAll(storageScanResults);
                         storageScanInProgress = false;
                         storageTick = 0;
                     }
@@ -1026,9 +1038,22 @@ public final class PortalFlight implements ClientModInitializer {
             }
         });
     }
+    // Visit the closest columns first (0, +1, -1, +2, -2 ...).
+    // This shows nearby storage sooner than scanning from the far corner.
+    private static int centeredScanOffset(int index) {
+        if (index == 0) return 0;
+        int offset = (index + 1) / 2;
+        return (index & 1) == 1 ? offset : -offset;
+    }
+
     private static boolean isStorageBlock(net.minecraft.world.level.block.state.BlockState state) {
         return state.is(Blocks.CHEST) || state.is(Blocks.TRAPPED_CHEST)
-                || state.is(Blocks.BARREL) || state.is(Blocks.ENDER_CHEST);
+                || state.is(Blocks.BARREL) || state.is(Blocks.ENDER_CHEST)
+                || state.is(BlockTags.SHULKER_BOXES)
+                || state.is(Blocks.HOPPER) || state.is(Blocks.DROPPER)
+                || state.is(Blocks.DISPENSER) || state.is(Blocks.FURNACE)
+                || state.is(Blocks.BLAST_FURNACE) || state.is(Blocks.SMOKER)
+                || state.is(Blocks.BREWING_STAND) || state.is(Blocks.CRAFTER);
     }
 
     private static void drawEspLine(VertexConsumer lines, Matrix4f pose,
