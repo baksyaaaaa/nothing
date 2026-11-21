@@ -36,6 +36,10 @@ All are optional and disabled by default. The movement batch avoids overriding P
 
 **Flying-player hit reliability update:** Client-side attack attempts were already uncapped, so there was no higher reach number to set. Instead, mace re-lock now aims only about **3.4 blocks above** and **0.85 blocks beside** the target rather than 6 blocks above, reducing distance at the moment of an attack. If the mace is charged and the target is within 4.5 blocks, Orbit Combat can try an ordinary hit even without a complete smash dive, preventing endless missed attempts against flying opponents. Server attack-range checks, damage rules and teleport acceptance are unchanged. Actual longer reach cannot be granted by the client alone.
 
+## Anti-cheat-safe inactive defaults
+
+**NoFall now starts OFF**, rather than silently starting enabled. Its old behavior sent forged `onGround=true` movement packets while the player was falling, even if the user had never manually toggled the module. That extra packet has been removed entirely: toggling NoFall now only resets the client-local fall-distance value, **which cannot guarantee preventing server-side fall damage**. Spectator Privacy and ESP Tracers still start ON but do not spoof movement packets. The server decides whether any client movement is legitimate; this change addresses one concrete suspicious behavior but does not guarantee the absence of future kicks.
+
 ## Weapon Reach
 
 Use **Right Ctrl → Combat → Weapon Reach** to enable extended range for **ordinary manual attacks** (not just Orbit Combat). The separate **Weapon Reach distance** button cycles **6 / 12 / 24 / 48 blocks**, default **12**. This applies a temporary modifier to the local player's entity-interaction-range attribute and removes only that modifier when disabled. It does not permanently modify the player's attributes or change the server's settings.
