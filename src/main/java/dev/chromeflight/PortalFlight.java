@@ -46,7 +46,7 @@ import org.lwjgl.glfw.GLFW;
 
 public final class PortalFlight implements ClientModInitializer {
     private static KeyMapping speedKey, boatKey, portalKey, freecamKey, flyKey, noFallKey, hungerKey, privacyKey, swimKey, boatDescendKey, playerEspKey, mobEspKey, storageFinderKey, autoSprintKey, tracerKey, orbitCombatKey, noclipKey, clickGuiKey;
-    private static boolean weaponReach, orbitTargetMobs, speed, boatFly, portalScan, fly, noFall = true, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat, noclip, autoTotem, autoLeave, autoWalk, autoJump, highJump, fastFall, waterWalk, autoSneak, noSlow, elytraBoost;
+    private static boolean weaponReach, orbitTargetMobs, speed, boatFly, portalScan, fly, noFall, hungerSaver, privacyMode = true, spectatorNearby, swimBoost, playerEsp, mobEsp, storageFinder, autoSprint, espTracers = true, orbitCombat, noclip, autoTotem, autoLeave, autoWalk, autoJump, highJump, fastFall, waterWalk, autoSneak, noSlow, elytraBoost;
     public static boolean freecam;
     public static Vec3 freecamPosition = Vec3.ZERO;
     public static Vec3 freecamPreviousPosition = Vec3.ZERO;
@@ -600,12 +600,10 @@ public final class PortalFlight implements ClientModInitializer {
                 player.displayClientMessage(Component.literal("§c§l[STAFF WATCH?] §e" + spectatorWarning), true);
             }
             if (noFall && !orbitCombat) {
-                // Local fall-distance reset and an explicit grounded-status packet during falls.
-                // Servers may still calculate fall damage from authoritative movement history.
-                boolean falling = !player.onGround() && player.getDeltaMovement().y < -0.10;
-                if (falling && player.getVehicle() == null && !freecam && client.getConnection() != null) {
-                    client.getConnection().send(new ServerboundMovePlayerPacket.StatusOnly(true, false));
-                }
+                // Client-only fall-distance reset. Never send fake on-ground
+                // movement packets: those are detectable and can trigger
+                // server anti-cheat kicks even though the player is falling.
+                // This does not prevent server-authoritative fall damage.
                 player.fallDistance = 0;
             }
             // Orbit Combat follows its target with a flying circle and attacks frequently.
